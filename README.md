@@ -62,7 +62,4 @@ To test the application immediately:
 - **Regular Customer Profile**:
   - Email: `customer@dhacut.com`
   - Password: `123456`
-- **Branch Administrator Suite**:
-  - Email: `admin@dhacut.com`
-  - Password: `123456`
-# DhakaCut2.0
+
