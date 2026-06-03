@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Scissors, MapPin, Users, Calendar, LayoutDashboard, Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
-import { getAllServices, createService, updateService, deleteService } from '../services/firestoreService';
-import { Service } from '../types';
+import { getAllServices, createService, updateService, deleteService, getAllSalons } from '../services/firestoreService';
+import { Service, Salon } from '../types';
 import { AdminTable, TableColumn } from '../components/AdminTable';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -26,9 +26,12 @@ export const AdminServices: React.FC = () => {
 
   // Form Fields
   const [name, setName] = useState('');
-  const [price, setPrice] = useState<string>('15');
+  const [price, setPrice] = useState<string>('250');
   const [duration, setDuration] = useState<string>('30');
   const [description, setDescription] = useState('');
+  const [salonId, setSalonId] = useState('');
+  const [category, setCategory] = useState<'Hair' | 'Beard' | 'Shave' | 'Color' | 'Treatment'>('Hair');
+  const [salons, setSalons] = useState<Salon[]>([]);
 
   // Security check
   useEffect(() => {
@@ -40,8 +43,12 @@ export const AdminServices: React.FC = () => {
   const loadServices = async () => {
     setLoading(true);
     try {
-      const data = await getAllServices();
-      setServices(data);
+      const [servicesData, salonsData] = await Promise.all([
+        getAllServices(),
+        getAllSalons()
+      ]);
+      setServices(servicesData);
+      setSalons(salonsData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -56,9 +63,11 @@ export const AdminServices: React.FC = () => {
   const openAddModal = () => {
     setEditingService(null);
     setName('');
-    setPrice('15');
+    setPrice('250');
     setDuration('30');
     setDescription('');
+    setSalonId(salons[0]?.id || '');
+    setCategory('Hair');
     setIsFormModalOpen(true);
   };
 
@@ -68,6 +77,8 @@ export const AdminServices: React.FC = () => {
     setPrice(String(service.price));
     setDuration(String(service.duration));
     setDescription(service.description);
+    setSalonId(service.salonId || '');
+    setCategory(service.category || 'Hair');
     setIsFormModalOpen(true);
   };
 
@@ -82,7 +93,9 @@ export const AdminServices: React.FC = () => {
       name,
       description,
       price: parseFloat(price),
-      duration: parseInt(duration)
+      duration: parseInt(duration),
+      salonId,
+      category
     };
 
     try {
@@ -118,6 +131,14 @@ export const AdminServices: React.FC = () => {
 
   const columns: TableColumn<Service>[] = [
     { header: 'Service Name', accessor: 'name', className: 'font-bold text-gray-900' },
+    { 
+      header: 'Branch Location',
+      render: (item) => salons.find(s => s.id === item.salonId)?.name || 'All Branches'
+    },
+    {
+      header: 'Category',
+      render: (item) => <span className="px-2 py-0.5 text-xs bg-gray-100 rounded-full font-medium">{item.category}</span>
+    },
     { 
       header: 'Description', 
       render: (item) => <span className="line-clamp-1 max-w-sm">{item.description}</span>
@@ -246,13 +267,12 @@ export const AdminServices: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Price ($ USD)"
+                label="Price (BDT)"
                 type="number"
-                step="0.01"
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="15.00"
+                placeholder="250"
                 required
               />
               <Input
@@ -265,6 +285,39 @@ export const AdminServices: React.FC = () => {
                 placeholder="30"
                 required
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Salon Branch</label>
+                <select
+                  value={salonId}
+                  onChange={(e) => setSalonId(e.target.value)}
+                  className="w-full text-sm border border-gray-300 rounded px-2.5 py-2.5 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                >
+                  <option value="">Select Salon...</option>
+                  {salons.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as any)}
+                  className="w-full text-sm border border-gray-300 rounded px-2.5 py-2.5 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
+                >
+                  <option value="Hair">Hair</option>
+                  <option value="Beard">Beard</option>
+                  <option value="Shave">Shave</option>
+                  <option value="Color">Color</option>
+                  <option value="Treatment">Treatment</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1">

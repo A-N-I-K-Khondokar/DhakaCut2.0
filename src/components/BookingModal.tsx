@@ -47,6 +47,7 @@ export const BookingModal: React.FC = () => {
   // Fetch staff and services for the selected salon
   const { data: staffList, loading: staffLoading } = useStaff(salon?.id);
   const { data: servicesList, loading: servicesLoading } = useServices();
+  const filteredServices = servicesList && salon ? servicesList.filter((s) => s.salonId === salon.id) : [];
   const { data: availableSlots, loading: slotsLoading } = useAvailableSlots(staff?.id, date);
 
   // Reset booking state when modal closes
@@ -186,7 +187,7 @@ export const BookingModal: React.FC = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {servicesList.map((se) => (
+                {filteredServices.map((se) => (
                   <div
                     key={se.id}
                     onClick={() => setService(se)}

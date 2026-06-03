@@ -9,4 +9,6 @@ export interface Staff {
   reviewCount: number;
   image: string;
   createdAt: string;
+  role?: 'Senior Stylist' | 'Master Barber' | 'Junior Stylist' | 'Skin Care Specialist' | 'Color Expert';
+  isAvailable?: boolean;
 }

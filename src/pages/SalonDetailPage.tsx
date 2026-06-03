@@ -23,6 +23,7 @@ export const SalonDetailPage: React.FC = () => {
   const { data: salon, loading: salonLoading, error: salonError } = useSalon(id);
   const { data: staffList, loading: staffLoading } = useStaff(id);
   const { data: servicesList, loading: servicesLoading } = useServices();
+  const salonServices = servicesList.filter((s) => s.salonId === id);
   const { data: reviews, loading: reviewsLoading, refetch: refetchReviews } = useReviews(undefined, id);
   const { data: userBookings } = useBookings(user?.id);
 
@@ -189,11 +190,11 @@ export const SalonDetailPage: React.FC = () => {
                     <div className="flex justify-center py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                     </div>
-                  ) : servicesList.length === 0 ? (
+                  ) : salonServices.length === 0 ? (
                     <p className="text-sm text-gray-500 italic py-6">No services currently offered.</p>
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {servicesList.map((service) => (
+                      {salonServices.map((service) => (
                         <div
                           key={service.id}
                           className="p-4 border border-gray-150 rounded flex justify-between items-center bg-gray-50/50 hover:bg-gray-50 transition-colors"
