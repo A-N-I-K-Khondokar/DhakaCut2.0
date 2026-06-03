@@ -20,6 +20,7 @@ import { AdminSalons } from './pages/AdminSalons';
 import { AdminStaff } from './pages/AdminStaff';
 import { AdminServices } from './pages/AdminServices';
 import { AdminBookings } from './pages/AdminBookings';
+import { MapSearchPage } from './pages/MapSearchPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 // Stylesheets
@@ -60,6 +61,8 @@ export const App: React.FC = () => {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/salons" element={<SalonListingPage />} />
               <Route path="/salons/:id" element={<SalonDetailPage />} />
+              <Route path="/salon/:id" element={<SalonDetailPage />} />
+              <Route path="/map" element={<MapSearchPage />} />
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
             </Route>

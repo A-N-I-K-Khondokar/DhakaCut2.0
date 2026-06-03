@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Salon } from '../types';
@@ -17,6 +17,22 @@ const MapController: React.FC<{ center: [number, number]; zoom: number }> = ({ c
   useEffect(() => {
     map.setView(center, zoom);
   }, [center, zoom, map]);
+};
+
+const SelectedMarkerController: React.FC<{
+  selectedSalonId?: string;
+  markerRefs: React.MutableRefObject<{ [key: string]: L.Marker | null }>;
+}> = ({ selectedSalonId, markerRefs }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (selectedSalonId && markerRefs.current[selectedSalonId]) {
+      const marker = markerRefs.current[selectedSalonId];
+      if (marker) {
+        marker.openPopup();
+        map.setView(marker.getLatLng(), 14);
+      }
+    }
+  }, [selectedSalonId, markerRefs, map]);
   return null;
 };
 
@@ -78,6 +94,8 @@ export const SalonMapView: React.FC<SalonMapViewProps> = ({
     : dhakaCenter;
   const mapZoom = userLocation ? 13 : 12;
 
+  const markerRefs = useRef<{ [key: string]: L.Marker | null }>({});
+
   return (
     <div className="relative w-full rounded-lg overflow-hidden border border-gray-250 shadow-sm" style={{ height }}>
       <MapContainer
@@ -86,6 +104,7 @@ export const SalonMapView: React.FC<SalonMapViewProps> = ({
         className="h-full w-full z-10"
       >
         <MapController center={mapCenter} zoom={mapZoom} />
+        <SelectedMarkerController selectedSalonId={selectedSalonId} markerRefs={markerRefs} />
         
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -110,6 +129,9 @@ export const SalonMapView: React.FC<SalonMapViewProps> = ({
             <Marker
               key={salon.id}
               position={[salon.lat, salon.lng]}
+              ref={(ref) => {
+                markerRefs.current[salon.id] = ref;
+              }}
               icon={isSelected ? selectedSalonIcon : normalSalonIcon}
             >
               <Popup>

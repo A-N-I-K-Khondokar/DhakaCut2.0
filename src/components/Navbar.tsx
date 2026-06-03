@@ -67,6 +67,12 @@ export const Navbar: React.FC = () => {
             >
               Book Salon
             </Link>
+            <Link 
+              to="/map" 
+              className={`text-sm font-medium transition-colors ${isActive('/map') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Map View
+            </Link>
             
             {user ? (
               <div className="relative" ref={dropdownRef}>
@@ -150,6 +156,12 @@ export const Navbar: React.FC = () => {
             className={`block px-3 py-2 rounded text-base font-medium ${isActive('/salons') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
           >
             Book Salon
+          </Link>
+          <Link
+            to="/map"
+            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/map') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
+          >
+            Map View
           </Link>
 
           {user ? (
