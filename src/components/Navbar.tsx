@@ -68,11 +68,12 @@ export const Navbar: React.FC = () => {
               Book Salon
             </Link>
             <Link 
-              to="/map" 
-              className={`text-sm font-medium transition-colors ${isActive('/map') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-gray-900'}`}
+              to="/map-search" 
+              className={`text-sm font-medium transition-colors ${isActive('/map-search') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              Map View
+              📍 Find on Map
             </Link>
+
             
             {user ? (
               <div className="relative" ref={dropdownRef}>
@@ -158,11 +159,12 @@ export const Navbar: React.FC = () => {
             Book Salon
           </Link>
           <Link
-            to="/map"
-            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/map') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
+            to="/map-search"
+            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/map-search') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
           >
-            Map View
+            📍 Find on Map
           </Link>
+
 
           {user ? (
             <div className="border-t border-gray-100 pt-4 mt-4 px-3">

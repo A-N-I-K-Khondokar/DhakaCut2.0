@@ -6,7 +6,8 @@ import {
   logIn as authLogIn, 
   logOut as authLogOut, 
   signUp as authSignUp,
-  updateUserProfile
+  updateUserProfile,
+  isMockMode
 } from '../services/firestoreService';
 import { User } from '../types';
 
@@ -24,13 +25,6 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-
-  // Check if we are running in mock mode based on Firestore initialization
-  const isMockMode = (() => {
-    const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-    const projId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-    return !apiKey || apiKey === 'mock-key' || projId === 'dhakacut-mock';
-  })();
 
   useEffect(() => {
     if (isMockMode) {

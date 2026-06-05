@@ -2,7 +2,7 @@ import React, { ButtonHTMLAttributes } from 'react';
 import { cn } from '../utils/helpers';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'outline-white' | 'outline-theme' | 'white' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
 }
@@ -19,10 +19,13 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'inline-flex items-center justify-center font-medium rounded transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
-    primary: 'bg-primary text-white hover:bg-primary-hover focus:ring-primary',
-    secondary: 'bg-secondary text-white hover:bg-secondary-hover focus:ring-secondary',
-    outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-primary',
-    danger: 'bg-error text-white hover:bg-error-hover focus:ring-error',
+    primary: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    secondary: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    outline: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    'outline-white': 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    'outline-theme': 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    white: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    danger: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
   };
 
   const sizes = {

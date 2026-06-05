@@ -1,10 +1,8 @@
 /**
- * Formats a number as a currency string (USD).
+ * Formats a number as a currency string (BDT - Bangladeshi Taka).
  */
 export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('en-BD', {
-    style: 'currency',
-    currency: 'BDT',
+  return '৳' + new Intl.NumberFormat('en-IN', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);

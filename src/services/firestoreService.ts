@@ -25,7 +25,21 @@ import { User, Salon, Service, Staff, Booking, Review } from '../types';
 import { generateId } from '../utils/helpers';
 
 // Determine if we are in mock mode (i.e. no Firebase configuration provided, or default mock IDs)
-const isMockMode = (() => {
+export const isMockMode = (() => {
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mock') === 'true') {
+      localStorage.setItem('dc_force_mock', 'true');
+      return true;
+    }
+    if (urlParams.get('mock') === 'false') {
+      localStorage.removeItem('dc_force_mock');
+      return false;
+    }
+    if (localStorage.getItem('dc_force_mock') === 'true') {
+      return true;
+    }
+  }
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
   const projId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
   return !apiKey || apiKey === 'mock-key' || projId === 'dhakacut-mock';
@@ -106,7 +120,7 @@ const MOCK_SALONS: Salon[] = [
     phone: '+880 1711 122277',
     lat: 23.8759,
     lng: 90.3795,
-    image: 'https://images.unsplash.com/photo-1512864084360-7c0c4d0a0845?auto=format&fit=crop&q=80&w=600',
+    image: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&q=80&w=600',
     rating: 4.6,
     description: 'Situated in Uttara, this modern grooming studio specializes in current haircut trends and custom styling. Enjoy our relaxing therapies in a spacious, modern, and hygienic environment.',
     operatingHours: { open: '09:00', close: '20:00' },
@@ -136,7 +150,7 @@ const MOCK_SALONS: Salon[] = [
     phone: '+880 1711 122299',
     lat: 23.8136,
     lng: 90.4243,
-    image: 'https://images.unsplash.com/photo-1517832606299-7ae9b720a186?auto=format&fit=crop&q=80&w=600',
+    image: 'https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?auto=format&fit=crop&q=80&w=600',
     rating: 4.7,
     description: 'Located near the residential estates of Bashundhara, this high-end branch offers relaxing hair styling and facial services. Enjoy a refreshing grooming session with our friendly styling professionals.',
     operatingHours: { open: '09:00', close: '20:00' },
@@ -151,7 +165,7 @@ const MOCK_SALONS: Salon[] = [
     phone: '+880 1711 122300',
     lat: 23.7629,
     lng: 90.3567,
-    image: 'https://images.unsplash.com/photo-1521447504363-ce62815bce8f?auto=format&fit=crop&q=80&w=600',
+    image: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=600',
     rating: 4.5,
     description: 'Bringing premium male grooming to Mohammadpur, our royal branch offers precision beard detailing and classic cuts. Step in for a relaxing hot towel treatment from our experienced team.',
     operatingHours: { open: '09:00', close: '20:00' },
@@ -1180,13 +1194,26 @@ const MOCK_REVIEWS: Review[] = [
 
 // Initialize mock localStorage tables if empty
 const initializeLocalStorage = () => {
-  if (!localStorage.getItem('dc_salons')) {
+  const existingSalons = localStorage.getItem('dc_salons');
+  let needsReseed = false;
+  if (existingSalons) {
+    try {
+      const parsed = JSON.parse(existingSalons);
+      if (Array.isArray(parsed) && parsed.length < MOCK_SALONS.length) {
+        needsReseed = true;
+      }
+    } catch (e) {
+      needsReseed = true;
+    }
+  }
+
+  if (!existingSalons || needsReseed) {
     localStorage.setItem('dc_salons', JSON.stringify(MOCK_SALONS));
   }
-  if (!localStorage.getItem('dc_services')) {
+  if (!localStorage.getItem('dc_services') || needsReseed) {
     localStorage.setItem('dc_services', JSON.stringify(MOCK_SERVICES));
   }
-  if (!localStorage.getItem('dc_staff')) {
+  if (!localStorage.getItem('dc_staff') || needsReseed) {
     localStorage.setItem('dc_staff', JSON.stringify(MOCK_STAFF));
   }
   if (!localStorage.getItem('dc_reviews')) {
@@ -1398,16 +1425,61 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>):
 // SALON FUNCTIONS
 // ==========================================
 
+// Seed real Firestore database with mock data if it is empty or incomplete
+export const seedFirestoreData = async (): Promise<void> => {
+  try {
+    console.log('[DhakaCut Service] Seeding Firestore with 10 salons, 50 services, and 30 staff...');
+    
+    // 1. Seed Salons
+    for (const salon of MOCK_SALONS) {
+      await setDoc(doc(db, 'salons', salon.id), salon);
+    }
+    
+    // 2. Seed Services
+    for (const service of MOCK_SERVICES) {
+      await setDoc(doc(db, 'services', service.id), service);
+    }
+    
+    // 3. Seed Staff
+    for (const staff of MOCK_STAFF) {
+      await setDoc(doc(db, 'staff', staff.id), staff);
+    }
+    
+    console.log('[DhakaCut Service] Firestore database seeding completed successfully!');
+  } catch (err) {
+    console.error('[DhakaCut Service] Failed to seed Firestore database:', err);
+  }
+};
+
 export const getAllSalons = async (): Promise<Salon[]> => {
   if (isMockMode) {
     return getLocalData<Salon>('dc_salons');
   }
-  const querySnapshot = await getDocs(collection(db, 'salons'));
-  const salons: Salon[] = [];
-  querySnapshot.forEach((docSnap) => {
-    salons.push({ id: docSnap.id, ...docSnap.data() } as Salon);
-  });
-  return salons;
+  try {
+    const querySnapshot = await getDocs(collection(db, 'salons'));
+    const salons: Salon[] = [];
+    querySnapshot.forEach((docSnap) => {
+      salons.push({ id: docSnap.id, ...docSnap.data() } as Salon);
+    });
+    
+    // If empty or missing salons, run the Firestore seeding process
+    if (salons.length < MOCK_SALONS.length) {
+      console.log(`[DhakaCut Service] Firestore contains ${salons.length} salons. Seeding database with all 10 salons, 50 services, and 30 staff...`);
+      await seedFirestoreData();
+      
+      // Re-fetch salons
+      const reQuery = await getDocs(collection(db, 'salons'));
+      const reSalons: Salon[] = [];
+      reQuery.forEach((docSnap) => {
+        reSalons.push({ id: docSnap.id, ...docSnap.data() } as Salon);
+      });
+      return reSalons;
+    }
+    return salons;
+  } catch (err) {
+    console.error('[DhakaCut Service] Firestore connection failed, falling back to mock data:', err);
+    return MOCK_SALONS;
+  }
 };
 
 export const getSalonById = async (id: string): Promise<Salon | null> => {

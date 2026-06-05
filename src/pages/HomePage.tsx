@@ -54,7 +54,14 @@ export const HomePage: React.FC = () => {
               Book Appointment
               <ArrowRight className="h-5 w-5" />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate('/signup')} className="border-white text-white bg-transparent hover:bg-white/10 hover:text-white">
+            <Button 
+              size="lg" 
+              variant="white" 
+              onClick={() => navigate('/map-search')} 
+            >
+              📍 Find Salon Near Me
+            </Button>
+            <Button size="lg" variant="outline-theme" onClick={() => navigate('/signup')}>
               Join DhakaCut
             </Button>
           </div>
@@ -178,8 +185,8 @@ export const HomePage: React.FC = () => {
           </p>
           <Button
             size="lg"
-            variant="outline"
-            className="border-white text-white hover:bg-white hover:text-primary transition-all text-base font-semibold"
+            variant="white"
+            className="text-base font-semibold transition-all hover:scale-[1.02] shadow-md"
             onClick={() => navigate('/salons')}
           >
             Find a Salon & Book Now

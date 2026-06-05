@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, UserCheck, ShieldAlert, Award, FileText, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useBookings, useCancelBooking } from '../hooks/useBooking';
-import { updateBookingStatus, getSalonById, getStaffById, getServiceById } from '../services/firestoreService';
+import { updateBookingStatus, getSalonById, getStaffById, getServiceById, isMockMode } from '../services/firestoreService';
 import { useToast } from '../hooks/useToast';
 import { Card, CardBody, CardHeader } from '../components/Card';
 import { Button } from '../components/Button';
@@ -128,8 +128,6 @@ export const DashboardPage: React.FC = () => {
 
     try {
       // Direct update mock logic or Firebase logic
-      const isMockMode = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_PROJECT_ID === 'dhakacut-mock';
-      
       if (isMockMode) {
         const localBookings = localStorage.getItem('dc_bookings');
         if (localBookings) {

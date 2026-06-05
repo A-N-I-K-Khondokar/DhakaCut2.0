@@ -9,7 +9,8 @@ import {
   getStaffById, 
   getServiceById, 
   getSalonById,
-  updateBookingStatus 
+  updateBookingStatus,
+  isMockMode
 } from '../services/firestoreService';
 import { Booking, Salon, Staff, Service, User } from '../types';
 import { AdminTable, TableColumn } from '../components/AdminTable';
@@ -70,7 +71,6 @@ export const AdminBookings: React.FC = () => {
       setHydratedDetails(cache);
 
       // In mock mode, load the user database so we can resolve emails
-      const isMockMode = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_PROJECT_ID === 'dhakacut-mock';
       if (isMockMode) {
         const mockUsers = localStorage.getItem('dc_users');
         if (mockUsers) setUsersList(JSON.parse(mockUsers));

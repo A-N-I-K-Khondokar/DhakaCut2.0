@@ -32,12 +32,12 @@ export const MapSearchPage: React.FC = () => {
   }, [nearbySalons, searchTerm]);
 
   const handleSalonSelect = (salon: any) => {
-    navigate(`/salons/${salon.id}`);
+    navigate(`/salon/${salon.id}`);
   };
 
   const handleBookNow = (salonId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate(`/salons/${salonId}`);
+    navigate(`/salon/${salonId}`);
   };
 
   return (
@@ -176,7 +176,7 @@ export const MapSearchPage: React.FC = () => {
                           className="px-3 py-1 bg-primary hover:bg-primary-hover text-white text-[11px] font-extrabold rounded-lg shadow-sm flex items-center gap-1 transition-all"
                         >
                           <Calendar className="h-3 w-3" />
-                          <span>Book</span>
+                          <span>Book Now</span>
                         </button>
                       </div>
                     </div>

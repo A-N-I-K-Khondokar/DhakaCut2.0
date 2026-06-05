@@ -54,7 +54,7 @@ export const SalonCard: React.FC<SalonCardProps> = ({
         <div className="flex flex-col gap-2 mt-auto">
           <div className="flex justify-between items-center text-xs border-t border-gray-100 pt-3 mb-2">
             <span className="text-gray-500 font-medium">Services starting at</span>
-            <span className="text-primary font-bold text-sm">$8.00</span>
+            <span className="text-primary font-bold text-sm">৳150</span>
           </div>
           
           <div className="grid grid-cols-2 gap-2">

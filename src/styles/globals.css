@@ -1,3 +1,39 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ======================================
+   Leaflet Map Tile Fix
+   Tailwind's preflight resets img elements
+   with max-width:100%, which breaks Leaflet
+   tile positioning and causes gray boxes.
+   ====================================== */
+.leaflet-container {
+  z-index: 0;
+}
+
+.leaflet-tile-pane img {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-tile-pane {
+  opacity: 1 !important;
+}
+
+/* Ensure Leaflet popup styles aren't broken by Tailwind resets */
+.leaflet-popup-content p {
+  margin: 0.25em 0;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+/* Fix for custom DivIcon markers losing pointer events */
+.custom-salon-marker,
+.custom-selected-salon-marker,
+.custom-user-location-marker {
+  background: transparent !important;
+  border: none !important;
+}
