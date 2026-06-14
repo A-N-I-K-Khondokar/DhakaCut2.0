@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, UserCheck, ShieldAlert, Award, FileText, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useBookings, useCancelBooking } from '../hooks/useBooking';
-import { updateBookingStatus, getSalonById, getStaffById, getServiceById, isMockMode } from '../services/firestoreService';
+import { updateBookingStatus, getSalonById, getStaffById, getServiceById, getAllSalons, getAllStaff, getAllServices, isMockMode } from '../services/firestoreService';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { useToast } from '../hooks/useToast';
 import { Card, CardBody, CardHeader } from '../components/Card';
 import { Button } from '../components/Button';
@@ -15,7 +17,7 @@ import { TimeSlotPicker } from '../components/TimeSlotPicker';
 import { getAvailableTimeSlots } from '../services/firestoreService';
 
 export const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -40,44 +42,69 @@ export const DashboardPage: React.FC = () => {
   // Hydrated details cache
   const [hydratedDetails, setHydratedDetails] = useState<Record<string, { salon: Salon | null; staff: Staff | null; service: Service | null }>>({});
 
-  // Protect route
+  // Protect route — wait for auth to resolve before redirecting
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       navigate('/login?redirect=dashboard');
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   // Load hydrated data (salon, staff, service details) for bookings
+  // Uses a single parallel batch fetch — no N+1 sequential queries
   useEffect(() => {
     const hydrateData = async () => {
-      const cache = { ...hydratedDetails };
-      let changed = false;
+      // Collect only IDs not already cached
+      const missingSalonIds = new Set<string>();
+      const missingStaffIds = new Set<string>();
+      const missingServiceIds = new Set<string>();
 
       for (const booking of bookings) {
         const cacheKey = `${booking.salonId}-${booking.staffId}-${booking.serviceId}`;
-        if (!cache[cacheKey]) {
-          try {
-            const [salon, staff, service] = await Promise.all([
-              getSalonById(booking.salonId),
-              getStaffById(booking.staffId),
-              getServiceById(booking.serviceId)
-            ]);
-            cache[cacheKey] = { salon, staff, service };
-            changed = true;
-          } catch (err) {
-            console.error('Failed to hydrate booking details', err);
-          }
+        if (!hydratedDetails[cacheKey]) {
+          missingSalonIds.add(booking.salonId);
+          missingStaffIds.add(booking.staffId);
+          missingServiceIds.add(booking.serviceId);
         }
       }
 
-      if (changed) {
-        setHydratedDetails(cache);
+      if (missingSalonIds.size === 0) return;
+
+      try {
+        // Fetch all missing entities in parallel
+        const [salonsData, staffData, servicesData] = await Promise.all([
+          getAllSalons(),
+          getAllStaff(),
+          getAllServices(),
+        ]);
+
+        const salonMap: Record<string, Salon> = {};
+        salonsData.forEach(s => { salonMap[s.id] = s; });
+        const staffMap: Record<string, Staff> = {};
+        staffData.forEach(st => { staffMap[st.id] = st; });
+        const serviceMap: Record<string, Service> = {};
+        servicesData.forEach(sv => { serviceMap[sv.id] = sv; });
+
+        const newCache = { ...hydratedDetails };
+        for (const booking of bookings) {
+          const cacheKey = `${booking.salonId}-${booking.staffId}-${booking.serviceId}`;
+          if (!newCache[cacheKey]) {
+            newCache[cacheKey] = {
+              salon: salonMap[booking.salonId] ?? null,
+              staff: staffMap[booking.staffId] ?? null,
+              service: serviceMap[booking.serviceId] ?? null,
+            };
+          }
+        }
+        setHydratedDetails(newCache);
+      } catch (err) {
+        console.error('Failed to hydrate booking details', err);
       }
     };
 
     if (bookings.length > 0) {
       hydrateData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookings]);
 
   // Load slots when reschedule settings change
@@ -141,9 +168,6 @@ export const DashboardPage: React.FC = () => {
           }
         }
       } else {
-        // Dynamic update call
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../services/firebase');
         await updateDoc(doc(db, 'bookings', rescheduleBookingItem.id), {
           bookingDate: rescheduleDate,
           bookingTime: rescheduleTime,
@@ -169,6 +193,14 @@ export const DashboardPage: React.FC = () => {
     const key = `${booking.salonId}-${booking.staffId}-${booking.serviceId}`;
     return hydratedDetails[key] || { salon: null, staff: null, service: null };
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   if (!user) return null;
 

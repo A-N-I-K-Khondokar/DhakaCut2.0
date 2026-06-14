@@ -1,55 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useContext } from 'react';
+import { ToastContext, ToastItem, ToastType } from '../context/ToastContext';
 
-export type ToastType = 'success' | 'error' | 'info';
-
-export interface ToastItem {
-  id: string;
-  message: string;
-  type: ToastType;
-}
-
-// Simple event emitter or pub-sub pattern to allow toasts to be triggered globally without context nesting
-type Listener = (toast: ToastItem) => void;
-const listeners = new Set<Listener>();
-
-export const emitToast = (message: string, type: ToastType = 'success') => {
-  const toastItem: ToastItem = {
-    id: Math.random().toString(36).substring(2, 9),
-    message,
-    type
-  };
-  listeners.forEach(listener => listener(toastItem));
-};
+export type { ToastItem, ToastType };
 
 export const useToast = () => {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-
-  useEffect(() => {
-    const handleNewToast = (newToast: ToastItem) => {
-      setToasts(prev => [...prev, newToast]);
-      
-      // Auto remove after 3.5 seconds
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== newToast.id));
-      }, 3500);
-    };
-
-    listeners.add(handleNewToast);
-    return () => {
-      listeners.delete(handleNewToast);
-    };
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
-
-  // Return trigger function and active items
-  return {
-    toasts,
-    toast: useCallback((message: string, type: ToastType = 'success') => {
-      emitToast(message, type);
-    }, []),
-    removeToast
-  };
+  const context = useContext(ToastContext);
+  if (context === undefined) {
+    throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
 };

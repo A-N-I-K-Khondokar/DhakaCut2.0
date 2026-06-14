@@ -10,11 +10,15 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
+
+# Environment files
+# .env.local contains real Firebase credentials — DO commit this for Vercel deployment
+# .env contains only mock/placeholder values — safe to gitignore
 .env
 .env.development
 .env.production
-.env.local
+# NOTE: .env.local is intentionally NOT ignored so Vercel can use the real Firebase config
+# If you don't want to commit credentials, add them via: Vercel Dashboard > Project Settings > Environment Variables
 
 # Editor directories and files
 .vscode/*

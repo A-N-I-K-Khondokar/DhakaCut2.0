@@ -9,7 +9,7 @@ import { formatCurrency } from '../utils/formatters';
 import { Card, CardBody } from '../components/Card';
 
 export const AdminDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -20,11 +20,13 @@ export const AdminDashboard: React.FC = () => {
 
   // Security guard
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      toast('Access Denied. Admins only.', 'error');
-      navigate('/');
+    if (!authLoading) {
+      if (!user || user.role !== 'admin') {
+        toast('Access Denied. Admins only.', 'error');
+        navigate('/');
+      }
     }
-  }, [user, navigate, toast]);
+  }, [user, authLoading, navigate, toast]);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -46,6 +48,14 @@ export const AdminDashboard: React.FC = () => {
     };
     loadDashboardData();
   }, []);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   if (!user || user.role !== 'admin') return null;
 

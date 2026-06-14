@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ───────────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ─── Salons (public read, admin write) ──────────────────────────────────
+    match /salons/{salonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Services (public read, admin write) ────────────────────────────────
+    match /services/{serviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Staff (public read, admin write) ───────────────────────────────────
+    // FIXED: was missing entirely — app reads staff on every salon detail page
+    match /staff/{staffId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Users ──────────────────────────────────────────────────────────────
+    // FIXED: added admin read-all so the admin dashboard can list users
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ─── Bookings ───────────────────────────────────────────────────────────
+    // FIXED: wrapped get() inside isAuthenticated() guard to prevent null crash
+    // FIXED: added delete rule for admins
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() &&
+                    (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() &&
+                      request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticated() &&
+                      (request.auth.uid == resource.data.userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ─── Reviews ────────────────────────────────────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+                      request.auth.uid == request.resource.data.userId;
+      allow update: if isAuthenticated() &&
+                      request.auth.uid == resource.data.userId;
+      allow delete: if isAdmin();
+    }
+  }
+}

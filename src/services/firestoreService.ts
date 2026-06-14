@@ -18,11 +18,13 @@ import {
   where, 
   orderBy,
   Timestamp,
-  addDoc
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User, Salon, Service, Staff, Booking, Review } from '../types';
 import { generateId } from '../utils/helpers';
+
 
 // Determine if we are in mock mode (i.e. no Firebase configuration provided, or default mock IDs)
 export const isMockMode = (() => {
@@ -1259,6 +1261,24 @@ const setLocalData = <T>(key: string, data: T[]): void => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
+// Helper to convert Firestore Timestamp to ISO string
+const mapDoc = <T>(docSnap: any): T => {
+  const data = docSnap.data();
+  const id = docSnap.id;
+  const converted: any = { id };
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      const val = data[key];
+      if (val && typeof val === 'object' && typeof val.toDate === 'function') {
+        converted[key] = val.toDate().toISOString();
+      } else {
+        converted[key] = val;
+      }
+    }
+  }
+  return converted as T;
+};
+
 // ==========================================
 // AUTHENTICATION FUNCTIONS
 // ==========================================
@@ -1282,18 +1302,33 @@ export const signUp = async (email: string, password: string, name: string, phon
     setLocalData('dc_users', users);
     
     // Save session in local storage
-    localStorage.setItem('dc_current_user', JSON.stringify(newUser));
+    localStorage.setItem('dhakacut_user', JSON.stringify(newUser));
     return newUser;
   } else {
-    // Standard Firebase Auth Flow
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const fbUser = userCredential.user;
-    
-    // Update profile display name
-    await updateProfile(fbUser, { displayName: name });
-    
+    // Step 1: Firebase Auth — hard fail on auth errors
+    let fbUser: any = null;
+    try {
+      console.log('[DhakaCut Auth Debug] Starting signUp with email:', email);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      fbUser = userCredential.user;
+      console.log('[DhakaCut Auth Debug] Auth account created. UID:', fbUser.uid);
+      await updateProfile(fbUser, { displayName: name });
+      console.log('[DhakaCut Auth Debug] Display name set.');
+    } catch (authErr: any) {
+      console.error('[DhakaCut Service] Auth error in signUp:', authErr);
+      if (authErr.code === 'auth/email-already-in-use') {
+        throw new Error('This email is already in use.');
+      } else if (authErr.code === 'auth/weak-password') {
+        throw new Error('The password is too weak. It must be at least 6 characters.');
+      } else if (authErr.code === 'auth/invalid-email') {
+        throw new Error('The email address is invalid.');
+      }
+      throw new Error(authErr.message || 'Failed to sign up.');
+    }
+
+    // Step 2: Write Firestore profile — soft fail if offline
     const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
-    const newUser: User = {
+    const userObj: User = {
       id: fbUser.uid,
       email,
       displayName: name,
@@ -1302,10 +1337,20 @@ export const signUp = async (email: string, password: string, name: string, phon
       createdAt: new Date().toISOString(),
     };
 
-    // Save user details to firestore
-    await setDoc(doc(db, 'users', fbUser.uid), newUser);
-    localStorage.setItem('dc_current_user', JSON.stringify(newUser));
-    return newUser;
+    try {
+      await setDoc(doc(db, 'users', fbUser.uid), {
+        ...userObj,
+        createdAt: serverTimestamp(),
+      });
+      console.log('[DhakaCut Auth Debug] Firestore profile saved.');
+    } catch (firestoreErr: any) {
+      // Firestore offline — account is created in Auth, user can still proceed
+      console.warn('[DhakaCut Auth Debug] Firestore offline during signUp. Profile will sync later.', firestoreErr.message);
+    }
+
+    localStorage.setItem('dhakacut_user', JSON.stringify(userObj));
+    console.log('[DhakaCut Auth Debug] SignUp complete. Role:', role);
+    return userObj;
   }
 };
 
@@ -1318,45 +1363,86 @@ export const logIn = async (email: string, password: string): Promise<User> => {
     // Mock simple password validation: matching length at least
     if (password.length < 6) throw new Error('Invalid credentials (password too short).');
 
-    localStorage.setItem('dc_current_user', JSON.stringify(user));
+    localStorage.setItem('dhakacut_user', JSON.stringify(user));
     return user;
   } else {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const fbUser = userCredential.user;
-    
-    // Fetch profile details from firestore
-    const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
-    
-    if (userDoc.exists()) {
-      const userData = userDoc.data() as User;
-      localStorage.setItem('dc_current_user', JSON.stringify(userData));
-      return userData;
-    } else {
-      // In case user exists in Auth but not inside Firestore users collection
-      const fallbackUser: User = {
+    let fbUser: any = null;
+    try {
+      console.log('[DhakaCut Auth Debug] Starting logIn with email:', email);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      fbUser = userCredential.user;
+      console.log('[DhakaCut Auth Debug] Auth succeeded. UID:', fbUser.uid);
+    } catch (authErr: any) {
+      console.error('[DhakaCut Service] Firebase Auth error in logIn:', authErr);
+      if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
+        throw new Error('Invalid email or password.');
+      } else if (authErr.code === 'auth/invalid-email') {
+        throw new Error('The email address is invalid.');
+      }
+      throw new Error(authErr.message || 'Failed to log in.');
+    }
+
+    // Auth succeeded — now try to load Firestore profile
+    // If Firestore is offline, fall back gracefully using Auth data
+    try {
+      console.log('[DhakaCut Auth Debug] Fetching Firestore user document...');
+      const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+
+      if (userDoc.exists()) {
+        const userData = mapDoc<User>(userDoc);
+        localStorage.setItem('dhakacut_user', JSON.stringify(userData));
+        console.log('[DhakaCut Auth Debug] User profile loaded from Firestore.');
+        return userData;
+      }
+
+      // Firestore document missing — create it
+      console.warn('[DhakaCut Auth Debug] Firestore profile missing. Creating one...');
+      const role: 'admin' | 'customer' = (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'customer';
+      const newProfile = {
         id: fbUser.uid,
         email: fbUser.email || email,
-        displayName: fbUser.displayName || 'Client',
+        displayName: fbUser.displayName || email.split('@')[0],
         phone: '',
-        role: (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'customer',
+        role,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, 'users', fbUser.uid), newProfile);
+      const userObj: User = { ...newProfile, createdAt: new Date().toISOString() };
+      localStorage.setItem('dhakacut_user', JSON.stringify(userObj));
+      return userObj;
+    } catch (firestoreErr: any) {
+      // Firestore is offline — but Auth worked! Build user from auth token and let them in.
+      console.warn('[DhakaCut Auth Debug] Firestore offline. Using Auth data as fallback user profile.');
+      const role = (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'customer';
+      const offlineUser: User = {
+        id: fbUser.uid,
+        email: fbUser.email || email,
+        displayName: fbUser.displayName || email.split('@')[0],
+        phone: '',
+        role,
         createdAt: new Date().toISOString(),
       };
-      await setDoc(doc(db, 'users', fbUser.uid), fallbackUser);
-      localStorage.setItem('dc_current_user', JSON.stringify(fallbackUser));
-      return fallbackUser;
+      localStorage.setItem('dhakacut_user', JSON.stringify(offlineUser));
+      console.log('[DhakaCut Auth Debug] Offline login successful via Auth fallback. Role:', role);
+      return offlineUser;
     }
   }
 };
 
 export const logOut = async (): Promise<void> => {
-  localStorage.removeItem('dc_current_user');
+  localStorage.removeItem('dhakacut_user');
   if (!isMockMode) {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in logOut:', err);
+      throw new Error(err.message || 'Failed to log out.');
+    }
   }
 };
 
 export const getCurrentUser = async (): Promise<User | null> => {
-  const localCached = localStorage.getItem('dc_current_user');
+  const localCached = localStorage.getItem('dhakacut_user');
   if (localCached) {
     return JSON.parse(localCached);
   }
@@ -1369,12 +1455,12 @@ export const getCurrentUser = async (): Promise<User | null> => {
   try {
     const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
     if (userDoc.exists()) {
-      const data = userDoc.data() as User;
-      localStorage.setItem('dc_current_user', JSON.stringify(data));
+      const data = mapDoc<User>(userDoc);
+      localStorage.setItem('dhakacut_user', JSON.stringify(data));
       return data;
     }
   } catch (err) {
-    console.error('Error fetching current user from Firestore: ', err);
+    console.error('[DhakaCut Service] Error fetching current user from Firestore: ', err);
   }
   return null;
 };
@@ -1387,7 +1473,17 @@ export const resetPassword = async (email: string): Promise<void> => {
     console.log(`Password reset email sent (Mocked) to: ${email}`);
     return;
   }
-  await sendPasswordResetEmail(auth, email);
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in resetPassword:', err);
+    if (err.code === 'auth/user-not-found') {
+      throw new Error('User not found.');
+    } else if (err.code === 'auth/invalid-email') {
+      throw new Error('The email address is invalid.');
+    }
+    throw new Error(err.message || 'Failed to send password reset email.');
+  }
 };
 
 export const updateUserProfile = async (userId: string, updates: Partial<User>): Promise<void> => {
@@ -1400,23 +1496,28 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>):
     setLocalData('dc_users', users);
     
     // Update local cache if updating current logged in user
-    const cur = localStorage.getItem('dc_current_user');
+    const cur = localStorage.getItem('dhakacut_user');
     if (cur) {
       const parsed = JSON.parse(cur) as User;
       if (parsed.id === userId) {
-        localStorage.setItem('dc_current_user', JSON.stringify(users[idx]));
+        localStorage.setItem('dhakacut_user', JSON.stringify(users[idx]));
       }
     }
     return;
   }
-  await updateDoc(doc(db, 'users', userId), updates);
-  
-  const cur = localStorage.getItem('dc_current_user');
-  if (cur) {
-    const parsed = JSON.parse(cur) as User;
-    if (parsed.id === userId) {
-      localStorage.setItem('dc_current_user', JSON.stringify({ ...parsed, ...updates }));
+  try {
+    await updateDoc(doc(db, 'users', userId), updates);
+    
+    const cur = localStorage.getItem('dhakacut_user');
+    if (cur) {
+      const parsed = JSON.parse(cur) as User;
+      if (parsed.id === userId) {
+        localStorage.setItem('dhakacut_user', JSON.stringify({ ...parsed, ...updates }));
+      }
     }
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in updateUserProfile:', err);
+    throw new Error('Failed to update user profile.');
   }
 };
 
@@ -1459,26 +1560,31 @@ export const getAllSalons = async (): Promise<Salon[]> => {
     const querySnapshot = await getDocs(collection(db, 'salons'));
     const salons: Salon[] = [];
     querySnapshot.forEach((docSnap) => {
-      salons.push({ id: docSnap.id, ...docSnap.data() } as Salon);
+      salons.push(mapDoc<Salon>(docSnap));
     });
-    
-    // If empty or missing salons, run the Firestore seeding process
-    if (salons.length < MOCK_SALONS.length) {
-      console.log(`[DhakaCut Service] Firestore contains ${salons.length} salons. Seeding database with all 10 salons, 50 services, and 30 staff...`);
+
+    // Seed Firestore ONLY ONCE per session if the database is empty/incomplete.
+    // Previously this ran on every getAllSalons() call, causing 5-10s delays.
+    const alreadySeeded = sessionStorage.getItem('dc_seeded');
+    if (salons.length < MOCK_SALONS.length && !alreadySeeded) {
+      console.log(`[DhakaCut Service] Firestore has ${salons.length} salons — seeding once this session...`);
+      sessionStorage.setItem('dc_seeded', 'true');
       await seedFirestoreData();
-      
-      // Re-fetch salons
+
+      // Re-fetch after seeding
       const reQuery = await getDocs(collection(db, 'salons'));
       const reSalons: Salon[] = [];
       reQuery.forEach((docSnap) => {
-        reSalons.push({ id: docSnap.id, ...docSnap.data() } as Salon);
+        reSalons.push(mapDoc<Salon>(docSnap));
       });
-      return reSalons;
+      return reSalons.sort((a, b) => b.rating - a.rating);
     }
-    return salons;
-  } catch (err) {
-    console.error('[DhakaCut Service] Firestore connection failed, falling back to mock data:', err);
-    return MOCK_SALONS;
+
+    // Sort by rating (descending) by default
+    return salons.sort((a, b) => b.rating - a.rating);
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getAllSalons:', err);
+    throw new Error('Failed to load salons. Please try again.');
   }
 };
 
@@ -1486,59 +1592,92 @@ export const getSalonById = async (id: string): Promise<Salon | null> => {
   if (isMockMode) {
     return getLocalData<Salon>('dc_salons').find(s => s.id === id) || null;
   }
-  const docSnap = await getDoc(doc(db, 'salons', id));
-  if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Salon;
+  try {
+    const docSnap = await getDoc(doc(db, 'salons', id));
+    if (docSnap.exists()) {
+      return mapDoc<Salon>(docSnap);
+    }
+    return null;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getSalonById:', err);
+    throw new Error('Failed to fetch salon details.');
   }
-  return null;
 };
 
 export const getSalonsByArea = async (area: string): Promise<Salon[]> => {
   if (isMockMode) {
     return getLocalData<Salon>('dc_salons').filter(s => s.area.toLowerCase() === area.toLowerCase());
   }
-  const q = query(collection(db, 'salons'), where('area', '==', area));
-  const querySnapshot = await getDocs(q);
-  const salons: Salon[] = [];
-  querySnapshot.forEach((docSnap) => {
-    salons.push({ id: docSnap.id, ...docSnap.data() } as Salon);
-  });
-  return salons;
+  try {
+    const q = query(collection(db, 'salons'), where('area', '==', area));
+    const querySnapshot = await getDocs(q);
+    const salons: Salon[] = [];
+    querySnapshot.forEach((docSnap) => {
+      salons.push(mapDoc<Salon>(docSnap));
+    });
+    return salons.sort((a, b) => b.rating - a.rating);
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getSalonsByArea:', err);
+    throw new Error('Failed to fetch salons in this area.');
+  }
 };
 
 export const createSalon = async (data: Omit<Salon, 'id' | 'createdAt' | 'updatedAt' | 'rating'>): Promise<Salon> => {
-  const newSalon: Salon = {
-    ...data,
-    id: isMockMode ? `salon-${generateId(8)}` : '',
-    rating: 5.0, // Initial rating
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
   if (isMockMode) {
+    const newSalon: Salon = {
+      ...data,
+      id: `salon-${generateId(8)}`,
+      rating: 5.0, // Initial rating
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     const salons = getLocalData<Salon>('dc_salons');
     salons.push(newSalon);
     setLocalData('dc_salons', salons);
     return newSalon;
   } else {
-    const docRef = await addDoc(collection(db, 'salons'), newSalon);
-    newSalon.id = docRef.id;
-    return newSalon;
+    try {
+      const dbData = {
+        ...data,
+        rating: 5.0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, 'salons'), dbData);
+      return {
+        ...data,
+        id: docRef.id,
+        rating: 5.0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in createSalon:', err);
+      throw new Error(err.message || 'Failed to create salon.');
+    }
   }
 };
 
 export const updateSalon = async (id: string, updates: Partial<Salon>): Promise<void> => {
-  const updatedData = { ...updates, updatedAt: new Date().toISOString() };
   if (isMockMode) {
     const salons = getLocalData<Salon>('dc_salons');
     const idx = salons.findIndex(s => s.id === id);
     if (idx !== -1) {
-      salons[idx] = { ...salons[idx], ...updatedData };
+      salons[idx] = { ...salons[idx], ...updates, updatedAt: new Date().toISOString() };
       setLocalData('dc_salons', salons);
     }
     return;
   }
-  await updateDoc(doc(db, 'salons', id), updatedData);
+  try {
+    const dbUpdates = {
+      ...updates,
+      updatedAt: serverTimestamp()
+    };
+    await updateDoc(doc(db, 'salons', id), dbUpdates);
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in updateSalon:', err);
+    throw new Error('Failed to update salon.');
+  }
 };
 
 export const deleteSalon = async (id: string): Promise<void> => {
@@ -1556,7 +1695,12 @@ export const deleteSalon = async (id: string): Promise<void> => {
     setLocalData('dc_bookings', bookings);
     return;
   }
-  await deleteDoc(doc(db, 'salons', id));
+  try {
+    await deleteDoc(doc(db, 'salons', id));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in deleteSalon:', err);
+    throw new Error('Failed to delete salon.');
+  }
 };
 
 
@@ -1568,41 +1712,62 @@ export const getAllServices = async (): Promise<Service[]> => {
   if (isMockMode) {
     return getLocalData<Service>('dc_services');
   }
-  const querySnapshot = await getDocs(collection(db, 'services'));
-  const services: Service[] = [];
-  querySnapshot.forEach((docSnap) => {
-    services.push({ id: docSnap.id, ...docSnap.data() } as Service);
-  });
-  return services;
+  try {
+    const querySnapshot = await getDocs(collection(db, 'services'));
+    const services: Service[] = [];
+    querySnapshot.forEach((docSnap) => {
+      services.push(mapDoc<Service>(docSnap));
+    });
+    return services;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getAllServices:', err);
+    throw new Error('Failed to fetch services.');
+  }
 };
 
 export const getServiceById = async (id: string): Promise<Service | null> => {
   if (isMockMode) {
     return getLocalData<Service>('dc_services').find(s => s.id === id) || null;
   }
-  const docSnap = await getDoc(doc(db, 'services', id));
-  if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Service;
+  try {
+    const docSnap = await getDoc(doc(db, 'services', id));
+    if (docSnap.exists()) {
+      return mapDoc<Service>(docSnap);
+    }
+    return null;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getServiceById:', err);
+    throw new Error('Failed to fetch service details.');
   }
-  return null;
 };
 
 export const createService = async (data: Omit<Service, 'id' | 'createdAt'>): Promise<Service> => {
-  const newService: Service = {
-    ...data,
-    id: isMockMode ? `service-${generateId(8)}` : '',
-    createdAt: new Date().toISOString(),
-  };
-
   if (isMockMode) {
+    const newService: Service = {
+      ...data,
+      id: `service-${generateId(8)}`,
+      createdAt: new Date().toISOString(),
+    };
     const services = getLocalData<Service>('dc_services');
     services.push(newService);
     setLocalData('dc_services', services);
     return newService;
   } else {
-    const docRef = await addDoc(collection(db, 'services'), newService);
-    newService.id = docRef.id;
-    return newService;
+    try {
+      const dbData = {
+        ...data,
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(collection(db, 'services'), dbData);
+      return {
+        ...data,
+        id: docRef.id,
+        createdAt: new Date().toISOString(),
+      };
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in createService:', err);
+      throw new Error(err.message || 'Failed to create service.');
+    }
   }
 };
 
@@ -1616,7 +1781,12 @@ export const updateService = async (id: string, updates: Partial<Service>): Prom
     }
     return;
   }
-  await updateDoc(doc(db, 'services', id), updates);
+  try {
+    await updateDoc(doc(db, 'services', id), updates);
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in updateService:', err);
+    throw new Error('Failed to update service.');
+  }
 };
 
 export const deleteService = async (id: string): Promise<void> => {
@@ -1626,7 +1796,12 @@ export const deleteService = async (id: string): Promise<void> => {
     setLocalData('dc_services', filtered);
     return;
   }
-  await deleteDoc(doc(db, 'services', id));
+  try {
+    await deleteDoc(doc(db, 'services', id));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in deleteService:', err);
+    throw new Error('Failed to delete service.');
+  }
 };
 
 
@@ -1638,44 +1813,86 @@ export const getStaffBySalon = async (salonId: string): Promise<Staff[]> => {
   if (isMockMode) {
     return getLocalData<Staff>('dc_staff').filter(st => st.salonId === salonId);
   }
-  const q = query(collection(db, 'staff'), where('salonId', '==', salonId));
-  const querySnapshot = await getDocs(q);
-  const staff: Staff[] = [];
-  querySnapshot.forEach((docSnap) => {
-    staff.push({ id: docSnap.id, ...docSnap.data() } as Staff);
-  });
-  return staff;
+  try {
+    const q = query(collection(db, 'staff'), where('salonId', '==', salonId));
+    const querySnapshot = await getDocs(q);
+    const staff: Staff[] = [];
+    querySnapshot.forEach((docSnap) => {
+      staff.push(mapDoc<Staff>(docSnap));
+    });
+    return staff;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getStaffBySalon:', err);
+    throw new Error('Failed to fetch staff for this salon.');
+  }
+};
+
+export const getAllStaff = async (): Promise<Staff[]> => {
+  if (isMockMode) {
+    return getLocalData<Staff>('dc_staff');
+  }
+  try {
+    const querySnapshot = await getDocs(collection(db, 'staff'));
+    const staff: Staff[] = [];
+    querySnapshot.forEach((docSnap) => {
+      staff.push(mapDoc<Staff>(docSnap));
+    });
+    return staff;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getAllStaff:', err);
+    throw new Error('Failed to fetch all staff.');
+  }
 };
 
 export const getStaffById = async (id: string): Promise<Staff | null> => {
   if (isMockMode) {
     return getLocalData<Staff>('dc_staff').find(st => st.id === id) || null;
   }
-  const docSnap = await getDoc(doc(db, 'staff', id));
-  if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Staff;
+  try {
+    const docSnap = await getDoc(doc(db, 'staff', id));
+    if (docSnap.exists()) {
+      return mapDoc<Staff>(docSnap);
+    }
+    return null;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getStaffById:', err);
+    throw new Error('Failed to fetch staff details.');
   }
-  return null;
 };
 
 export const createStaff = async (data: Omit<Staff, 'id' | 'createdAt' | 'avgRating' | 'reviewCount'>): Promise<Staff> => {
-  const newStaff: Staff = {
-    ...data,
-    id: isMockMode ? `staff-${generateId(8)}` : '',
-    avgRating: 5.0,
-    reviewCount: 0,
-    createdAt: new Date().toISOString(),
-  };
-
   if (isMockMode) {
+    const newStaff: Staff = {
+      ...data,
+      id: `staff-${generateId(8)}`,
+      avgRating: 5.0,
+      reviewCount: 0,
+      createdAt: new Date().toISOString(),
+    };
     const staffList = getLocalData<Staff>('dc_staff');
     staffList.push(newStaff);
     setLocalData('dc_staff', staffList);
     return newStaff;
   } else {
-    const docRef = await addDoc(collection(db, 'staff'), newStaff);
-    newStaff.id = docRef.id;
-    return newStaff;
+    try {
+      const dbData = {
+        ...data,
+        avgRating: 5.0,
+        reviewCount: 0,
+        createdAt: serverTimestamp(),
+      };
+      const docRef = await addDoc(collection(db, 'staff'), dbData);
+      return {
+        ...data,
+        id: docRef.id,
+        avgRating: 5.0,
+        reviewCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in createStaff:', err);
+      throw new Error(err.message || 'Failed to create staff member.');
+    }
   }
 };
 
@@ -1689,7 +1906,12 @@ export const updateStaff = async (id: string, updates: Partial<Staff>): Promise<
     }
     return;
   }
-  await updateDoc(doc(db, 'staff', id), updates);
+  try {
+    await updateDoc(doc(db, 'staff', id), updates);
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in updateStaff:', err);
+    throw new Error('Failed to update staff member.');
+  }
 };
 
 export const deleteStaff = async (id: string): Promise<void> => {
@@ -1705,7 +1927,12 @@ export const deleteStaff = async (id: string): Promise<void> => {
     setLocalData('dc_bookings', bookings);
     return;
   }
-  await deleteDoc(doc(db, 'staff', id));
+  try {
+    await deleteDoc(doc(db, 'staff', id));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in deleteStaff:', err);
+    throw new Error('Failed to delete staff member.');
+  }
 };
 
 
@@ -1714,23 +1941,38 @@ export const deleteStaff = async (id: string): Promise<void> => {
 // ==========================================
 
 export const createBooking = async (data: Omit<Booking, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Booking> => {
-  const newBooking: Booking = {
-    ...data,
-    id: isMockMode ? `booking-${generateId(8)}` : '',
-    status: 'confirmed', // Automatically confirm bookings for ease of use
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
   if (isMockMode) {
+    const newBooking: Booking = {
+      ...data,
+      id: `booking-${generateId(8)}`,
+      status: 'confirmed', // Automatically confirm bookings for ease of use
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
     const bookings = getLocalData<Booking>('dc_bookings');
     bookings.push(newBooking);
     setLocalData('dc_bookings', bookings);
     return newBooking;
   } else {
-    const docRef = await addDoc(collection(db, 'bookings'), newBooking);
-    newBooking.id = docRef.id;
-    return newBooking;
+    try {
+      const dbData = {
+        ...data,
+        status: 'confirmed' as const,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, 'bookings'), dbData);
+      return {
+        ...data,
+        id: docRef.id,
+        status: 'confirmed',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in createBooking:', err);
+      throw new Error(err.message || 'Failed to create booking.');
+    }
   }
 };
 
@@ -1742,16 +1984,21 @@ export const getUserBookings = async (userId: string): Promise<Booking[]> => {
       .filter(b => b.userId === userId)
       .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.bookingTime.localeCompare(a.bookingTime));
   }
-  const q = query(
-    collection(db, 'bookings'), 
-    where('userId', '==', userId)
-  );
-  const querySnapshot = await getDocs(q);
-  const bookings: Booking[] = [];
-  querySnapshot.forEach((docSnap) => {
-    bookings.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-  });
-  return bookings.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.bookingTime.localeCompare(a.bookingTime));
+  try {
+    const q = query(
+      collection(db, 'bookings'), 
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const bookings: Booking[] = [];
+    querySnapshot.forEach((docSnap) => {
+      bookings.push(mapDoc<Booking>(docSnap));
+    });
+    return bookings.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.bookingTime.localeCompare(a.bookingTime));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getUserBookings:', err);
+    throw new Error('Failed to fetch user bookings.');
+  }
 };
 
 export const getAllBookings = async (): Promise<Booking[]> => {
@@ -1759,26 +2006,38 @@ export const getAllBookings = async (): Promise<Booking[]> => {
     return getLocalData<Booking>('dc_bookings')
       .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.bookingTime.localeCompare(a.bookingTime));
   }
-  const querySnapshot = await getDocs(collection(db, 'bookings'));
-  const bookings: Booking[] = [];
-  querySnapshot.forEach((docSnap) => {
-    bookings.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-  });
-  return bookings.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.bookingTime.localeCompare(a.bookingTime));
+  try {
+    const querySnapshot = await getDocs(collection(db, 'bookings'));
+    const bookings: Booking[] = [];
+    querySnapshot.forEach((docSnap) => {
+      bookings.push(mapDoc<Booking>(docSnap));
+    });
+    return bookings.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate) || b.bookingTime.localeCompare(a.bookingTime));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getAllBookings:', err);
+    throw new Error('Failed to fetch all bookings.');
+  }
 };
 
 export const updateBookingStatus = async (id: string, status: Booking['status']): Promise<void> => {
-  const updatedData = { status, updatedAt: new Date().toISOString() };
   if (isMockMode) {
     const bookings = getLocalData<Booking>('dc_bookings');
     const idx = bookings.findIndex(b => b.id === id);
     if (idx !== -1) {
-      bookings[idx] = { ...bookings[idx], ...updatedData };
+      bookings[idx] = { ...bookings[idx], status, updatedAt: new Date().toISOString() };
       setLocalData('dc_bookings', bookings);
     }
     return;
   }
-  await updateDoc(doc(db, 'bookings', id), updatedData);
+  try {
+    await updateDoc(doc(db, 'bookings', id), {
+      status,
+      updatedAt: serverTimestamp()
+    });
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in updateBookingStatus:', err);
+    throw new Error('Failed to update booking status.');
+  }
 };
 
 export const cancelBooking = async (id: string): Promise<void> => {
@@ -1797,47 +2056,52 @@ export const getAvailableTimeSlots = async (staffId: string, date: string): Prom
     '18:00', '18:30'
   ];
 
-  let bookedSlots: string[] = [];
+  try {
+    let bookedSlots: string[] = [];
 
-  if (isMockMode) {
-    const bookings = getLocalData<Booking>('dc_bookings');
-    bookedSlots = bookings
-      .filter(b => b.staffId === staffId && b.bookingDate === date && b.status !== 'cancelled')
-      .map(b => b.bookingTime);
-  } else {
-    const q = query(
-      collection(db, 'bookings'),
-      where('staffId', '==', staffId),
-      where('bookingDate', '==', date)
-    );
-    const querySnapshot = await getDocs(q);
-    querySnapshot.forEach(docSnap => {
-      const b = docSnap.data() as Booking;
-      if (b.status !== 'cancelled') {
-        bookedSlots.push(b.bookingTime);
-      }
-    });
-  }
-
-  // Filter out booked slots. Also, if date is today, filter out past slots.
-  const todayStr = new Date().toISOString().split('T')[0];
-  const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-
-  return allSlots.filter(slot => {
-    // Check if slot is already booked
-    if (bookedSlots.includes(slot)) return false;
-    
-    // Check if slot is in the past (if date is today)
-    if (date === todayStr) {
-      const [slotH, slotM] = slot.split(':').map(Number);
-      if (slotH < currentHour || (slotH === currentHour && slotM <= currentMinute)) {
-        return false;
-      }
+    if (isMockMode) {
+      const bookings = getLocalData<Booking>('dc_bookings');
+      bookedSlots = bookings
+        .filter(b => b.staffId === staffId && b.bookingDate === date && b.status !== 'cancelled')
+        .map(b => b.bookingTime);
+    } else {
+      const q = query(
+        collection(db, 'bookings'),
+        where('staffId', '==', staffId),
+        where('bookingDate', '==', date)
+      );
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach(docSnap => {
+        const b = mapDoc<Booking>(docSnap);
+        if (b.status !== 'cancelled') {
+          bookedSlots.push(b.bookingTime);
+        }
+      });
     }
-    return true;
-  });
+
+    // Filter out booked slots. Also, if date is today, filter out past slots.
+    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return allSlots.filter(slot => {
+      // Check if slot is already booked
+      if (bookedSlots.includes(slot)) return false;
+      
+      // Check if slot is in the past (if date is today)
+      if (date === todayStr) {
+        const [slotH, slotM] = slot.split(':').map(Number);
+        if (slotH < currentHour || (slotH === currentHour && slotM <= currentMinute)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getAvailableTimeSlots:', err);
+    throw new Error('Failed to get available time slots.');
+  }
 };
 
 export const isTimeSlotBooked = async (staffId: string, date: string, time: string): Promise<boolean> => {
@@ -1851,13 +2115,12 @@ export const isTimeSlotBooked = async (staffId: string, date: string, time: stri
 // ==========================================
 
 export const createReview = async (data: Omit<Review, 'id' | 'createdAt'>): Promise<Review> => {
-  const newReview: Review = {
-    ...data,
-    id: isMockMode ? `review-${generateId(8)}` : '',
-    createdAt: new Date().toISOString(),
-  };
-
   if (isMockMode) {
+    const newReview: Review = {
+      ...data,
+      id: `review-${generateId(8)}`,
+      createdAt: new Date().toISOString(),
+    };
     const reviews = getLocalData<Review>('dc_reviews');
     reviews.push(newReview);
     setLocalData('dc_reviews', reviews);
@@ -1866,10 +2129,25 @@ export const createReview = async (data: Omit<Review, 'id' | 'createdAt'>): Prom
     await calculateStaffAvgRating(data.staffId);
     return newReview;
   } else {
-    const docRef = await addDoc(collection(db, 'reviews'), newReview);
-    newReview.id = docRef.id;
-    await calculateStaffAvgRating(data.staffId);
-    return newReview;
+    try {
+      const dbData = {
+        ...data,
+        createdAt: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, 'reviews'), dbData);
+      
+      const newReview: Review = {
+        ...data,
+        id: docRef.id,
+        createdAt: new Date().toISOString()
+      };
+      
+      await calculateStaffAvgRating(data.staffId);
+      return newReview;
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in createReview:', err);
+      throw new Error(err.message || 'Failed to create review.');
+    }
   }
 };
 
@@ -1879,13 +2157,18 @@ export const getReviewsByStaff = async (staffId: string): Promise<Review[]> => {
       .filter(r => r.staffId === staffId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
-  const q = query(collection(db, 'reviews'), where('staffId', '==', staffId), orderBy('createdAt', 'desc'));
-  const querySnapshot = await getDocs(q);
-  const reviews: Review[] = [];
-  querySnapshot.forEach((docSnap) => {
-    reviews.push({ id: docSnap.id, ...docSnap.data() } as Review);
-  });
-  return reviews;
+  try {
+    const q = query(collection(db, 'reviews'), where('staffId', '==', staffId));
+    const querySnapshot = await getDocs(q);
+    const reviews: Review[] = [];
+    querySnapshot.forEach((docSnap) => {
+      reviews.push(mapDoc<Review>(docSnap));
+    });
+    return reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getReviewsByStaff:', err);
+    throw new Error('Failed to fetch reviews for this staff member.');
+  }
 };
 
 export const getReviewsBySalon = async (salonId: string): Promise<Review[]> => {
@@ -1894,13 +2177,18 @@ export const getReviewsBySalon = async (salonId: string): Promise<Review[]> => {
       .filter(r => r.salonId === salonId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
-  const q = query(collection(db, 'reviews'), where('salonId', '==', salonId), orderBy('createdAt', 'desc'));
-  const querySnapshot = await getDocs(q);
-  const reviews: Review[] = [];
-  querySnapshot.forEach((docSnap) => {
-    reviews.push({ id: docSnap.id, ...docSnap.data() } as Review);
-  });
-  return reviews;
+  try {
+    const q = query(collection(db, 'reviews'), where('salonId', '==', salonId));
+    const querySnapshot = await getDocs(q);
+    const reviews: Review[] = [];
+    querySnapshot.forEach((docSnap) => {
+      reviews.push(mapDoc<Review>(docSnap));
+    });
+    return reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getReviewsBySalon:', err);
+    throw new Error('Failed to fetch reviews for this salon.');
+  }
 };
 
 export const deleteReview = async (id: string): Promise<void> => {
@@ -1916,35 +2204,45 @@ export const deleteReview = async (id: string): Promise<void> => {
     }
     return;
   }
-  
-  const docSnap = await getDoc(doc(db, 'reviews', id));
-  if (docSnap.exists()) {
-    staffId = (docSnap.data() as Review).staffId;
-    await deleteDoc(doc(db, 'reviews', id));
-    await calculateStaffAvgRating(staffId);
+  try {
+    const docSnap = await getDoc(doc(db, 'reviews', id));
+    if (docSnap.exists()) {
+      staffId = (docSnap.data() as Review).staffId;
+      await deleteDoc(doc(db, 'reviews', id));
+      await calculateStaffAvgRating(staffId);
+    }
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in deleteReview:', err);
+    throw new Error('Failed to delete review.');
   }
 };
 
 export const calculateStaffAvgRating = async (staffId: string): Promise<{ avgRating: number; reviewCount: number }> => {
-  let staffReviews: Review[] = [];
-  
-  if (isMockMode) {
-    staffReviews = getLocalData<Review>('dc_reviews').filter(r => r.staffId === staffId);
-  } else {
-    const q = query(collection(db, 'reviews'), where('staffId', '==', staffId));
-    const querySnapshot = await getDocs(q);
-    querySnapshot.forEach(docSnap => {
-      staffReviews.push(docSnap.data() as Review);
-    });
+  try {
+    let staffReviews: Review[] = [];
+    
+    if (isMockMode) {
+      staffReviews = getLocalData<Review>('dc_reviews').filter(r => r.staffId === staffId);
+    } else {
+      const q = query(collection(db, 'reviews'), where('staffId', '==', staffId));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach(docSnap => {
+        staffReviews.push(mapDoc<Review>(docSnap));
+      });
+    }
+
+    const reviewCount = staffReviews.length;
+    const avgRating = reviewCount > 0 
+      ? parseFloat((staffReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount).toFixed(1))
+      : 5.0;
+
+    // Update staff document with new scores
+    await updateStaff(staffId, { avgRating, reviewCount });
+    
+    return { avgRating, reviewCount };
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in calculateStaffAvgRating:', err);
+    throw new Error('Failed to calculate staff average rating.');
   }
-
-  const reviewCount = staffReviews.length;
-  const avgRating = reviewCount > 0 
-    ? parseFloat((staffReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount).toFixed(1))
-    : 5.0;
-
-  // Update staff document with new scores
-  await updateStaff(staffId, { avgRating, reviewCount });
-  
-  return { avgRating, reviewCount };
 };
+

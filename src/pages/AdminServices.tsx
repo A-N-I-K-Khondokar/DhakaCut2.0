@@ -12,7 +12,7 @@ import { Input } from '../components/Input';
 import { formatCurrency, formatDuration } from '../utils/formatters';
 
 export const AdminServices: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -35,10 +35,12 @@ export const AdminServices: React.FC = () => {
 
   // Security check
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      navigate('/');
+    if (!authLoading) {
+      if (!user || user.role !== 'admin') {
+        navigate('/');
+      }
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   const loadServices = async () => {
     setLoading(true);
@@ -174,6 +176,14 @@ export const AdminServices: React.FC = () => {
       )
     }
   ];
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   if (!user || user.role !== 'admin') return null;
 

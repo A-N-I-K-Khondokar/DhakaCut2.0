@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { BookingProvider } from './context/BookingContext';
+import { ToastProvider } from './context/ToastContext';
 import { ToastContainer } from './components/Toast';
 import { BookingModal } from './components/BookingModal';
 import { Navbar } from './components/Navbar';
@@ -46,41 +47,43 @@ const CustomerLayout: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <BookingProvider>
-        <BrowserRouter>
-          {/* Global UI Components */}
-          <ToastContainer />
-          <BookingModal />
+    <ToastProvider>
+      <AuthProvider>
+        <BookingProvider>
+          <BrowserRouter>
+            {/* Global UI Components */}
+            <ToastContainer />
+            <BookingModal />
 
-          <Routes>
-            {/* Customer Facing Pages */}
-            <Route element={<CustomerLayout />}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/salons" element={<SalonListingPage />} />
-              <Route path="/salons/:id" element={<SalonDetailPage />} />
-              <Route path="/salon/:id" element={<SalonDetailPage />} />
-              <Route path="/map" element={<MapSearchPage />} />
-              <Route path="/map-search" element={<MapSearchPage />} />
-              <Route path="/booking" element={<BookingPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-            </Route>
+            <Routes>
+              {/* Customer Facing Pages */}
+              <Route element={<CustomerLayout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/salons" element={<SalonListingPage />} />
+                <Route path="/salons/:id" element={<SalonDetailPage />} />
+                <Route path="/salon/:id" element={<SalonDetailPage />} />
+                <Route path="/map" element={<MapSearchPage />} />
+                <Route path="/map-search" element={<MapSearchPage />} />
+                <Route path="/booking" element={<BookingPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+              </Route>
 
-            {/* Admin Management Pages (Omit customer layouts) */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/salons" element={<AdminSalons />} />
-            <Route path="/admin/staff" element={<AdminStaff />} />
-            <Route path="/admin/services" element={<AdminServices />} />
-            <Route path="/admin/bookings" element={<AdminBookings />} />
+              {/* Admin Management Pages (Omit customer layouts) */}
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/salons" element={<AdminSalons />} />
+              <Route path="/admin/staff" element={<AdminStaff />} />
+              <Route path="/admin/services" element={<AdminServices />} />
+              <Route path="/admin/bookings" element={<AdminBookings />} />
 
-            {/* Fallback Page */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </BrowserRouter>
-      </BookingProvider>
-    </AuthProvider>
+              {/* Fallback Page */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </BrowserRouter>
+        </BookingProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 

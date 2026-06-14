@@ -36,6 +36,7 @@ export const HomePage: React.FC = () => {
           src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&q=80&w=1200"
           alt="Barbershop interior"
           className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none opacity-40 z-0"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 text-center sm:text-left flex flex-col gap-6 max-w-3xl">
@@ -144,6 +145,14 @@ export const HomePage: React.FC = () => {
                       alt={salon.name}
                       className="w-full h-full object-cover rounded-t"
                       loading="lazy"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.style.background = 'linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%)';
+                        }
+                      }}
                     />
                     <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
                       <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />

@@ -29,7 +29,11 @@ export const useReviews = (staffId?: string, salonId?: string) => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  const avgRating = data.length > 0
+    ? parseFloat((data.reduce((sum, r) => sum + r.rating, 0) / data.length).toFixed(1))
+    : 5.0;
+
+  return { data, loading, error, avgRating, refetch: fetchData };
 };
 
 export const useCreateReview = () => {

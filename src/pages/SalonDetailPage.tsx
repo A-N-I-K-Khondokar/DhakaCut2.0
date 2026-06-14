@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Star, MapPin, Phone, Clock, Users, Scissors, MessageSquare, AlertCircle, Calendar } from 'lucide-react';
-import { useSalon } from '../hooks/useSalons';
+import { useSalon } from '../hooks/useSalon';
 import { useStaff } from '../hooks/useStaff';
 import { useServices } from '../hooks/useServices';
 import { useReviews } from '../hooks/useReviews';

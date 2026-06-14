@@ -26,6 +26,14 @@ export const SalonCard: React.FC<SalonCardProps> = ({
           alt={name}
           className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
           loading="lazy"
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.style.display = 'none';
+            const parent = target.parentElement;
+            if (parent) {
+              parent.style.background = 'linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%)';
+            }
+          }}
         />
         <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
           <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />

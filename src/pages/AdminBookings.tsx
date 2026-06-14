@@ -6,9 +6,8 @@ import { useToast } from '../hooks/useToast';
 import { 
   getAllBookings, 
   getAllSalons, 
-  getStaffById, 
-  getServiceById, 
-  getSalonById,
+  getAllStaff,
+  getAllServices,
   updateBookingStatus,
   isMockMode
 } from '../services/firestoreService';
@@ -19,7 +18,7 @@ import { Modal } from '../components/Modal';
 import { formatCurrency, formatDuration, formatDate } from '../utils/formatters';
 
 export const AdminBookings: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -38,34 +37,48 @@ export const AdminBookings: React.FC = () => {
   // Cached hydrations
   const [hydratedDetails, setHydratedDetails] = useState<Record<string, { salon: Salon | null; staff: Staff | null; service: Service | null }>>({});
 
-  // Security check
+  // Security check — wait for auth to resolve before redirecting
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      navigate('/');
+    if (!authLoading) {
+      if (!user || user.role !== 'admin') {
+        navigate('/');
+      }
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [bookingsData, salonsData] = await Promise.all([
+      // Fetch all data in parallel — eliminates N+1 sequential queries
+      const [bookingsData, salonsData, allStaffData, allServicesData] = await Promise.all([
         getAllBookings(),
-        getAllSalons()
+        getAllSalons(),
+        getAllStaff(),
+        getAllServices(),
       ]);
       setBookings(bookingsData);
       setSalons(salonsData);
 
-      // Hydrate all booking relations
+      // Build O(1) lookup maps from the pre-fetched data
+      const salonMap: Record<string, Salon> = {};
+      salonsData.forEach(s => { salonMap[s.id] = s; });
+
+      const staffMap: Record<string, Staff> = {};
+      allStaffData.forEach(st => { staffMap[st.id] = st; });
+
+      const serviceMap: Record<string, Service> = {};
+      allServicesData.forEach(sv => { serviceMap[sv.id] = sv; });
+
+      // Build hydration cache in-memory (no more per-booking Firestore calls)
       const cache: Record<string, { salon: Salon | null; staff: Staff | null; service: Service | null }> = {};
       for (const booking of bookingsData) {
         const cacheKey = `${booking.salonId}-${booking.staffId}-${booking.serviceId}`;
         if (!cache[cacheKey]) {
-          const [salon, staff, service] = await Promise.all([
-            getSalonById(booking.salonId),
-            getStaffById(booking.staffId),
-            getServiceById(booking.serviceId)
-          ]);
-          cache[cacheKey] = { salon, staff, service };
+          cache[cacheKey] = {
+            salon: salonMap[booking.salonId] ?? null,
+            staff: staffMap[booking.staffId] ?? null,
+            service: serviceMap[booking.serviceId] ?? null,
+          };
         }
       }
       setHydratedDetails(cache);
@@ -176,6 +189,14 @@ export const AdminBookings: React.FC = () => {
       )
     }
   ];
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   if (!user || user.role !== 'admin') return null;
 

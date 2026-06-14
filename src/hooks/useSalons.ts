@@ -1,17 +1,25 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Salon } from '../types';
-import { getAllSalons, getSalonById } from '../services/firestoreService';
+import { getAllSalons } from '../services/firestoreService';
+
+let salonsCache: Salon[] | null = null;
 
 export const useSalons = () => {
-  const [data, setData] = useState<Salon[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [data, setData] = useState<Salon[]>(salonsCache || []);
+  const [loading, setLoading] = useState<boolean>(!salonsCache);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
+    if (salonsCache && !force) {
+      setData(salonsCache);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const salons = await getAllSalons();
+      salonsCache = salons;
       setData(salons);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch salons');
@@ -24,31 +32,9 @@ export const useSalons = () => {
     fetchData();
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
-};
-
-export const useSalon = (id: string | undefined) => {
-  const [data, setData] = useState<Salon | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const salon = await getSalonById(id);
-      setData(salon);
-    } catch (err: any) {
-      setError(err.message || `Failed to fetch salon with id ${id}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    fetchData();
+  const refetch = useCallback(() => {
+    return fetchData(true);
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch };
 };

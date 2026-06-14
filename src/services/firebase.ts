@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'mock-key',
@@ -14,6 +14,12 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Use memory cache to avoid IndexedDB quota errors.
+// Do NOT use experimentalForceLongPolling in production — it disables WebSocket
+// connections and degrades performance significantly (causes 2–5s extra latency).
+const db = initializeFirestore(app, {
+  localCache: memoryLocalCache(),
+});
 
 export { app, auth, db };
