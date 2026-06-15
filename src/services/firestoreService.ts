@@ -26,28 +26,28 @@ import { User, Salon, Service, Staff, Booking, Review } from '../types';
 import { generateId } from '../utils/helpers';
 
 
-// Determine if we are in mock mode (i.e. no Firebase configuration provided, or default mock IDs)
-export const isMockMode = (() => {
-  if (typeof window !== 'undefined') {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('mock') === 'true') {
-      localStorage.setItem('dc_force_mock', 'true');
-      return true;
-    }
-    if (urlParams.get('mock') === 'false') {
-      localStorage.removeItem('dc_force_mock');
-      return false;
-    }
-    if (localStorage.getItem('dc_force_mock') === 'true') {
-      return true;
-    }
-  }
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-  const projId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  return !apiKey || apiKey === 'mock-key' || projId === 'dhakacut-mock';
-})();
+// Set to true to use localStorage mock data (no Firebase needed).
+// Set to false to use live Firestore — database must exist in Firebase Console.
+export const isMockMode = false;
 
 console.log(`[DhakaCut Service] Running in ${isMockMode ? 'MOCK LOCAL' : 'FIREBASE'} mode.`);
+
+// Emit a custom storage event so real-time listeners in useBookings/useSlots
+// can react immediately when bookings are created, updated, or cancelled.
+export const emitBookingChange = () => {
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'dc_bookings',
+    storageArea: localStorage,
+  }));
+};
+
+// Helper: race a promise against a timeout so Firestore reads can never hang forever
+const withTimeout = <T>(promise: Promise<T>, ms = 8000, label = 'Firestore'): Promise<T> => {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`[DhakaCut] ${label} timed out after ${ms}ms`)), ms)
+  );
+  return Promise.race([promise, timeout]);
+};
 
 // ==========================================
 // MOCK DATA STORAGE & SEEDING (LOCALSTORAGE)
@@ -1305,52 +1305,62 @@ export const signUp = async (email: string, password: string, name: string, phon
     localStorage.setItem('dhakacut_user', JSON.stringify(newUser));
     return newUser;
   } else {
-    // Step 1: Firebase Auth — hard fail on auth errors
-    let fbUser: any = null;
+    // Flag to prevent onAuthStateChanged from calling getDoc concurrently
+    localStorage.setItem('dc_signup_in_progress', 'true');
     try {
-      console.log('[DhakaCut Auth Debug] Starting signUp with email:', email);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      fbUser = userCredential.user;
-      console.log('[DhakaCut Auth Debug] Auth account created. UID:', fbUser.uid);
-      await updateProfile(fbUser, { displayName: name });
-      console.log('[DhakaCut Auth Debug] Display name set.');
-    } catch (authErr: any) {
-      console.error('[DhakaCut Service] Auth error in signUp:', authErr);
-      if (authErr.code === 'auth/email-already-in-use') {
-        throw new Error('This email is already in use.');
-      } else if (authErr.code === 'auth/weak-password') {
-        throw new Error('The password is too weak. It must be at least 6 characters.');
-      } else if (authErr.code === 'auth/invalid-email') {
-        throw new Error('The email address is invalid.');
+      // Step 1: Firebase Auth — hard fail on auth errors
+      let fbUser: any = null;
+      try {
+        console.log('[DhakaCut Auth Debug] Starting signUp with email:', email);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        fbUser = userCredential.user;
+        console.log('[DhakaCut Auth Debug] Auth account created. UID:', fbUser.uid);
+        await updateProfile(fbUser, { displayName: name });
+        console.log('[DhakaCut Auth Debug] Display name set.');
+      } catch (authErr: any) {
+        console.error('[DhakaCut Service] Auth error in signUp:', authErr);
+        if (authErr.code === 'auth/email-already-in-use') {
+          throw new Error('This email is already in use.');
+        } else if (authErr.code === 'auth/weak-password') {
+          throw new Error('The password is too weak. It must be at least 6 characters.');
+        } else if (authErr.code === 'auth/invalid-email') {
+          throw new Error('The email address is invalid.');
+        }
+        throw new Error(authErr.message || 'Failed to sign up.');
       }
-      throw new Error(authErr.message || 'Failed to sign up.');
+
+      // Step 2: Write Firestore profile — soft fail if offline
+      const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+      const userObj: User = {
+        id: fbUser.uid,
+        email,
+        displayName: name,
+        phone,
+        role,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await withTimeout(
+          setDoc(doc(db, 'users', fbUser.uid), {
+            ...userObj,
+            createdAt: serverTimestamp(),
+          }),
+          8000,
+          'signUp setDoc'
+        );
+        console.log('[DhakaCut Auth Debug] Firestore profile saved.');
+      } catch (firestoreErr: any) {
+        // Firestore offline or timed out — account is created in Auth, user can still proceed
+        console.warn('[DhakaCut Auth Debug] Firestore write failed during signUp. Profile will sync later.', firestoreErr.message);
+      }
+
+      localStorage.setItem('dhakacut_user', JSON.stringify(userObj));
+      console.log('[DhakaCut Auth Debug] SignUp complete. Role:', role);
+      return userObj;
+    } finally {
+      localStorage.removeItem('dc_signup_in_progress');
     }
-
-    // Step 2: Write Firestore profile — soft fail if offline
-    const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
-    const userObj: User = {
-      id: fbUser.uid,
-      email,
-      displayName: name,
-      phone,
-      role,
-      createdAt: new Date().toISOString(),
-    };
-
-    try {
-      await setDoc(doc(db, 'users', fbUser.uid), {
-        ...userObj,
-        createdAt: serverTimestamp(),
-      });
-      console.log('[DhakaCut Auth Debug] Firestore profile saved.');
-    } catch (firestoreErr: any) {
-      // Firestore offline — account is created in Auth, user can still proceed
-      console.warn('[DhakaCut Auth Debug] Firestore offline during signUp. Profile will sync later.', firestoreErr.message);
-    }
-
-    localStorage.setItem('dhakacut_user', JSON.stringify(userObj));
-    console.log('[DhakaCut Auth Debug] SignUp complete. Role:', role);
-    return userObj;
   }
 };
 
@@ -1382,11 +1392,15 @@ export const logIn = async (email: string, password: string): Promise<User> => {
       throw new Error(authErr.message || 'Failed to log in.');
     }
 
-    // Auth succeeded — now try to load Firestore profile
-    // If Firestore is offline, fall back gracefully using Auth data
+    // Auth succeeded — now try to load Firestore profile with a hard timeout
+    // so this can NEVER hang indefinitely even if Firestore is unresponsive.
     try {
       console.log('[DhakaCut Auth Debug] Fetching Firestore user document...');
-      const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+      const userDoc = await withTimeout(
+        getDoc(doc(db, 'users', fbUser.uid)),
+        8000,
+        'logIn getDoc'
+      );
 
       if (userDoc.exists()) {
         const userData = mapDoc<User>(userDoc);
@@ -1406,13 +1420,17 @@ export const logIn = async (email: string, password: string): Promise<User> => {
         role,
         createdAt: serverTimestamp(),
       };
-      await setDoc(doc(db, 'users', fbUser.uid), newProfile);
+      await withTimeout(
+        setDoc(doc(db, 'users', fbUser.uid), newProfile),
+        8000,
+        'logIn setDoc'
+      );
       const userObj: User = { ...newProfile, createdAt: new Date().toISOString() };
       localStorage.setItem('dhakacut_user', JSON.stringify(userObj));
       return userObj;
     } catch (firestoreErr: any) {
-      // Firestore is offline — but Auth worked! Build user from auth token and let them in.
-      console.warn('[DhakaCut Auth Debug] Firestore offline. Using Auth data as fallback user profile.');
+      // Firestore is offline or timed out — but Auth worked! Build user from auth token and let them in.
+      console.warn('[DhakaCut Auth Debug] Firestore failed/timed out. Using Auth data as fallback user profile.', firestoreErr.message);
       const role = (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'customer';
       const offlineUser: User = {
         id: fbUser.uid,
@@ -1423,7 +1441,7 @@ export const logIn = async (email: string, password: string): Promise<User> => {
         createdAt: new Date().toISOString(),
       };
       localStorage.setItem('dhakacut_user', JSON.stringify(offlineUser));
-      console.log('[DhakaCut Auth Debug] Offline login successful via Auth fallback. Role:', role);
+      console.log('[DhakaCut Auth Debug] Fallback login successful via Auth data. Role:', role);
       return offlineUser;
     }
   }
@@ -1442,27 +1460,57 @@ export const logOut = async (): Promise<void> => {
 };
 
 export const getCurrentUser = async (): Promise<User | null> => {
-  const localCached = localStorage.getItem('dhakacut_user');
-  if (localCached) {
-    return JSON.parse(localCached);
+  if (isMockMode) {
+    const localCached = localStorage.getItem('dhakacut_user');
+    if (localCached) {
+      return JSON.parse(localCached);
+    }
+    return null;
   }
   
-  if (isMockMode) return null;
-
   const fbUser = auth.currentUser;
-  if (!fbUser) return null;
+  if (!fbUser) {
+    localStorage.removeItem('dhakacut_user');
+    return null;
+  }
+
+  // Check local cache first — avoid Firestore round-trip if UID matches
+  const localCached = localStorage.getItem('dhakacut_user');
+  if (localCached) {
+    try {
+      const parsed = JSON.parse(localCached);
+      if (parsed && parsed.id === fbUser.uid) {
+        return parsed;
+      }
+    } catch (e) {
+      localStorage.removeItem('dhakacut_user');
+    }
+  }
 
   try {
-    const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+    const userDoc = await withTimeout(
+      getDoc(doc(db, 'users', fbUser.uid)),
+      8000,
+      'getCurrentUser getDoc'
+    );
     if (userDoc.exists()) {
       const data = mapDoc<User>(userDoc);
       localStorage.setItem('dhakacut_user', JSON.stringify(data));
       return data;
     }
   } catch (err) {
-    console.error('[DhakaCut Service] Error fetching current user from Firestore: ', err);
+    console.error('[DhakaCut Service] Error fetching current user from Firestore (or timed out): ', err);
   }
-  return null;
+  // Return a minimal fallback using auth data so the user is never stuck
+  const fallback: User = {
+    id: fbUser.uid,
+    email: fbUser.email || '',
+    displayName: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+    phone: '',
+    role: 'customer',
+    createdAt: new Date().toISOString(),
+  };
+  return fallback;
 };
 
 export const resetPassword = async (email: string): Promise<void> => {
@@ -1557,36 +1605,40 @@ export const getAllSalons = async (): Promise<Salon[]> => {
     return getLocalData<Salon>('dc_salons');
   }
   try {
-    const querySnapshot = await getDocs(collection(db, 'salons'));
+    console.log('[DhakaCut] Connecting to Firestore project:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
+    const querySnapshot = await withTimeout(
+      getDocs(collection(db, 'salons')),
+      12000,
+      'getAllSalons'
+    );
     const salons: Salon[] = [];
     querySnapshot.forEach((docSnap) => {
       salons.push(mapDoc<Salon>(docSnap));
     });
 
-    // Seed Firestore ONLY ONCE per session if the database is empty/incomplete.
-    // Previously this ran on every getAllSalons() call, causing 5-10s delays.
-    const alreadySeeded = sessionStorage.getItem('dc_seeded');
-    if (salons.length < MOCK_SALONS.length && !alreadySeeded) {
-      console.log(`[DhakaCut Service] Firestore has ${salons.length} salons — seeding once this session...`);
-      sessionStorage.setItem('dc_seeded', 'true');
-      await seedFirestoreData();
+    console.log(`[DhakaCut] Loaded ${salons.length} salons from Firestore`);
 
-      // Re-fetch after seeding
-      const reQuery = await getDocs(collection(db, 'salons'));
-      const reSalons: Salon[] = [];
-      reQuery.forEach((docSnap) => {
-        reSalons.push(mapDoc<Salon>(docSnap));
-      });
-      return reSalons.sort((a, b) => b.rating - a.rating);
+    // If database is empty, kick off seeding in the background (non-blocking)
+    // so the page doesn't hang waiting for 90+ individual writes.
+    const alreadySeeded = sessionStorage.getItem('dc_seeded');
+    if (salons.length === 0 && !alreadySeeded) {
+      sessionStorage.setItem('dc_seeded', 'true');
+      console.log('[DhakaCut Service] Database empty — seeding in background...');
+      seedFirestoreData(); // fire-and-forget
     }
 
-    // Sort by rating (descending) by default
     return salons.sort((a, b) => b.rating - a.rating);
   } catch (err: any) {
-    console.error('[DhakaCut Service] Error in getAllSalons:', err);
-    throw new Error('Failed to load salons. Please try again.');
+    console.error('[DhakaCut] getAllSalons FULL ERROR:', {
+      code: err?.code,
+      message: err?.message,
+      name: err?.name,
+      stack: err?.stack,
+    });
+    throw new Error(`Failed to load salons. (${err?.code || err?.message || 'unknown error'})`);
   }
 };
+
 
 export const getSalonById = async (id: string): Promise<Salon | null> => {
   if (isMockMode) {
@@ -1945,19 +1997,20 @@ export const createBooking = async (data: Omit<Booking, 'id' | 'createdAt' | 'up
     const newBooking: Booking = {
       ...data,
       id: `booking-${generateId(8)}`,
-      status: 'confirmed', // Automatically confirm bookings for ease of use
+      status: 'pending', // By default pending
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     const bookings = getLocalData<Booking>('dc_bookings');
     bookings.push(newBooking);
     setLocalData('dc_bookings', bookings);
+    emitBookingChange(); // Notify all useBookings listeners instantly
     return newBooking;
   } else {
     try {
       const dbData = {
         ...data,
-        status: 'confirmed' as const,
+        status: 'pending' as const, // By default pending
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
@@ -1965,7 +2018,7 @@ export const createBooking = async (data: Omit<Booking, 'id' | 'createdAt' | 'up
       return {
         ...data,
         id: docRef.id,
-        status: 'confirmed',
+        status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -2026,6 +2079,7 @@ export const updateBookingStatus = async (id: string, status: Booking['status'])
     if (idx !== -1) {
       bookings[idx] = { ...bookings[idx], status, updatedAt: new Date().toISOString() };
       setLocalData('dc_bookings', bookings);
+      emitBookingChange(); // Notify all useBookings listeners instantly
     }
     return;
   }

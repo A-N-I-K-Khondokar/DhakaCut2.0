@@ -57,6 +57,14 @@ export const BookingModal: React.FC = () => {
     }
   }, [isOpen, resetBooking]);
 
+  // Check if Salon Director (admin) and close modal
+  useEffect(() => {
+    if (isOpen && user && user.role === 'admin') {
+      toast('Salon Directors / Administrators are not permitted to book appointments.', 'error');
+      closeBooking();
+    }
+  }, [isOpen, user, closeBooking, toast]);
+
   if (!salon) return null;
 
   const handleNext = () => {
@@ -72,6 +80,12 @@ export const BookingModal: React.FC = () => {
       toast('Please sign in to complete your booking.', 'error');
       closeBooking();
       navigate('/login');
+      return;
+    }
+
+    if (user.role === 'admin') {
+      toast('Salon Directors / Administrators are not permitted to book appointments.', 'error');
+      closeBooking();
       return;
     }
 
@@ -321,6 +335,11 @@ export const BookingModal: React.FC = () => {
                 Please note: You must log in or sign up before you can confirm this booking.
               </div>
             )}
+            {user && user.role === 'admin' && (
+              <div className="mt-4 p-3 bg-error-light/10 border border-error-light text-error text-xs rounded font-medium text-center">
+                Salon Directors / Administrators cannot book appointments.
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -351,7 +370,7 @@ export const BookingModal: React.FC = () => {
             size="sm"
             onClick={handleConfirm}
             isLoading={bookingLoading}
-            disabled={!user && step === 5}
+            disabled={(!user || user.role === 'admin') && step === 5}
             className="bg-success hover:bg-success-hover text-white flex items-center gap-1.5"
           >
             Confirm Booking

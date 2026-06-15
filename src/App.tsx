@@ -23,6 +23,8 @@ import { AdminServices } from './pages/AdminServices';
 import { AdminBookings } from './pages/AdminBookings';
 import { MapSearchPage } from './pages/MapSearchPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import SeedPage from './pages/SeedPage';
+import { DebugPanel } from './components/DebugPanel';
 
 // Stylesheets
 import './styles/globals.css';
@@ -54,6 +56,7 @@ export const App: React.FC = () => {
             {/* Global UI Components */}
             <ToastContainer />
             <BookingModal />
+            <DebugPanel />
 
             <Routes>
               {/* Customer Facing Pages */}
@@ -76,6 +79,9 @@ export const App: React.FC = () => {
               <Route path="/admin/staff" element={<AdminStaff />} />
               <Route path="/admin/services" element={<AdminServices />} />
               <Route path="/admin/bookings" element={<AdminBookings />} />
+
+              {/* One-time database seeding tool */}
+              <Route path="/seed" element={<SeedPage />} />
 
               {/* Fallback Page */}
               <Route path="*" element={<NotFoundPage />} />

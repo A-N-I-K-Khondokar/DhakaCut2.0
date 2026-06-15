@@ -2,15 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { Booking } from '../types';
-import { getUserBookings, isMockMode } from '../services/firestoreService';
+import { getUserBookings, getAllBookings, isMockMode } from '../services/firestoreService';
 
-export const useBookings = (userId: string | undefined) => {
+export const useBookings = (userId: string | undefined, fetchAll = false) => {
   const [data, setData] = useState<Booking[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMockBookings = useCallback(async () => {
-    if (!userId) {
+    if (!fetchAll && !userId) {
       setData([]);
       setLoading(false);
       return;
@@ -18,18 +18,18 @@ export const useBookings = (userId: string | undefined) => {
     setLoading(true);
     setError(null);
     try {
-      const bookings = await getUserBookings(userId);
+      const bookings = fetchAll ? await getAllBookings() : await getUserBookings(userId!);
       setData(bookings);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch bookings');
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, fetchAll]);
 
   // Refetch for Firebase mode — does a one-shot getDocs query
   const fetchFirebaseBookings = useCallback(async () => {
-    if (!userId) {
+    if (!fetchAll && !userId) {
       setData([]);
       setLoading(false);
       return;
@@ -37,7 +37,9 @@ export const useBookings = (userId: string | undefined) => {
     setLoading(true);
     setError(null);
     try {
-      const q = query(collection(db, 'bookings'), where('userId', '==', userId));
+      const q = fetchAll
+        ? query(collection(db, 'bookings'))
+        : query(collection(db, 'bookings'), where('userId', '==', userId));
       const snapshot = await getDocs(q);
       const bookingsList: Booking[] = [];
       snapshot.forEach((docSnap) => {
@@ -60,28 +62,38 @@ export const useBookings = (userId: string | undefined) => {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, fetchAll]);
 
   useEffect(() => {
-    if (!userId) {
+    if (!fetchAll && !userId) {
       setData([]);
       setLoading(false);
       return;
     }
 
     if (isMockMode) {
+      // Initial load
       fetchMockBookings();
-      return;
+
+      // Real-time: re-fetch whenever a booking is created, updated, or cancelled.
+      // emitBookingChange() dispatches a StorageEvent on 'dc_bookings' so all
+      // mounted useBookings hooks instantly refresh — no polling needed.
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'dc_bookings') {
+          fetchMockBookings();
+        }
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const q = query(
-        collection(db, 'bookings'),
-        where('userId', '==', userId)
-      );
+      const q = fetchAll
+        ? query(collection(db, 'bookings'))
+        : query(collection(db, 'bookings'), where('userId', '==', userId));
 
       const unsubscribe = onSnapshot(
         q,
@@ -120,7 +132,7 @@ export const useBookings = (userId: string | undefined) => {
       setError(err.message || 'Failed to initialize bookings connection');
       setLoading(false);
     }
-  }, [userId, fetchMockBookings]);
+  }, [userId, fetchAll, fetchMockBookings]);
 
   // Unified refetch: works in both mock mode and Firebase mode
   const refetch = useCallback(() => {

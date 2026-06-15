@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Calendar, MapPin, Users, Scissors, LayoutDashboard, AlertCircle, Eye } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
+import { useBookings } from '../hooks/useBooking';
 import { 
-  getAllBookings, 
   getAllSalons, 
   getAllStaff,
   getAllServices,
@@ -22,10 +22,18 @@ export const AdminBookings: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Real-time subscription to all bookings
+  const { data: bookingsData, loading: bookingsLoading } = useBookings(undefined, true);
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Maps for O(1) hydration
+  const [salonMap, setSalonMap] = useState<Record<string, Salon>>({});
+  const [staffMap, setStaffMap] = useState<Record<string, Staff>>({});
+  const [serviceMap, setServiceMap] = useState<Record<string, Service>>({});
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -46,30 +54,45 @@ export const AdminBookings: React.FC = () => {
     }
   }, [user, authLoading, navigate]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // Fetch all data in parallel — eliminates N+1 sequential queries
-      const [bookingsData, salonsData, allStaffData, allServicesData] = await Promise.all([
-        getAllBookings(),
-        getAllSalons(),
-        getAllStaff(),
-        getAllServices(),
-      ]);
+  // Load static data once on mount
+  useEffect(() => {
+    const loadStaticData = async () => {
+      try {
+        const [salonsData, allStaffData, allServicesData] = await Promise.all([
+          getAllSalons(),
+          getAllStaff(),
+          getAllServices(),
+        ]);
+        setSalons(salonsData);
+
+        const sMap: Record<string, Salon> = {};
+        salonsData.forEach(s => { sMap[s.id] = s; });
+        setSalonMap(sMap);
+
+        const stMap: Record<string, Staff> = {};
+        allStaffData.forEach(st => { stMap[st.id] = st; });
+        setStaffMap(stMap);
+
+        const svMap: Record<string, Service> = {};
+        allServicesData.forEach(sv => { svMap[sv.id] = sv; });
+        setServiceMap(svMap);
+
+        if (isMockMode) {
+          const mockUsers = localStorage.getItem('dc_users');
+          if (mockUsers) setUsersList(JSON.parse(mockUsers));
+        }
+      } catch (err) {
+        console.error('Error loading static data:', err);
+      }
+    };
+    loadStaticData();
+  }, []);
+
+  // Update bookings state and hydration cache when real-time bookingsData changes
+  useEffect(() => {
+    if (!bookingsLoading) {
       setBookings(bookingsData);
-      setSalons(salonsData);
-
-      // Build O(1) lookup maps from the pre-fetched data
-      const salonMap: Record<string, Salon> = {};
-      salonsData.forEach(s => { salonMap[s.id] = s; });
-
-      const staffMap: Record<string, Staff> = {};
-      allStaffData.forEach(st => { staffMap[st.id] = st; });
-
-      const serviceMap: Record<string, Service> = {};
-      allServicesData.forEach(sv => { serviceMap[sv.id] = sv; });
-
-      // Build hydration cache in-memory (no more per-booking Firestore calls)
+      
       const cache: Record<string, { salon: Salon | null; staff: Staff | null; service: Service | null }> = {};
       for (const booking of bookingsData) {
         const cacheKey = `${booking.salonId}-${booking.staffId}-${booking.serviceId}`;
@@ -82,22 +105,9 @@ export const AdminBookings: React.FC = () => {
         }
       }
       setHydratedDetails(cache);
-
-      // In mock mode, load the user database so we can resolve emails
-      if (isMockMode) {
-        const mockUsers = localStorage.getItem('dc_users');
-        if (mockUsers) setUsersList(JSON.parse(mockUsers));
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  }, [bookingsData, bookingsLoading, salonMap, staffMap, serviceMap]);
 
   // Filter Bookings
   useEffect(() => {

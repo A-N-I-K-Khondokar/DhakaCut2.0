@@ -8,12 +8,14 @@ interface SalonCardProps {
   salon: Salon;
   onBookClick: (salon: Salon) => void;
   onViewDetailClick: (id: string) => void;
+  disabledBook?: boolean;
 }
 
 export const SalonCard: React.FC<SalonCardProps> = ({
   salon,
   onBookClick,
   onViewDetailClick,
+  disabledBook = false,
 }) => {
   const { id, name, area, address, image, rating, description } = salon;
 
@@ -78,8 +80,9 @@ export const SalonCard: React.FC<SalonCardProps> = ({
               size="sm"
               onClick={() => onBookClick(salon)}
               className="text-xs flex items-center justify-center gap-1"
+              disabled={disabledBook}
             >
-              Book Now
+              {disabledBook ? 'Disabled' : 'Book Now'}
               <ArrowRight className="h-3 w-3" />
             </Button>
           </div>

@@ -12,12 +12,15 @@ import { StaffCard } from '../components/StaffCard';
 import { ReviewForm } from '../components/ReviewForm';
 import { Button } from '../components/Button';
 import { formatCurrency, formatDuration, formatDate } from '../utils/formatters';
+import { useToast } from '../hooks/useToast';
 
 export const SalonDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { openBooking } = useContext(BookingContext) || {};
+  const { toast } = useToast();
+  const [imageError, setImageError] = useState(false);
   
   // Data queries
   const { data: salon, loading: salonLoading, error: salonError } = useSalon(id);
@@ -59,6 +62,10 @@ export const SalonDetailPage: React.FC = () => {
   }
 
   const handleBookNow = () => {
+    if (user?.role === 'admin') {
+      toast('Salon Directors cannot book appointments.', 'error');
+      return;
+    }
     if (openBooking) {
       openBooking(salon);
     }
@@ -69,11 +76,18 @@ export const SalonDetailPage: React.FC = () => {
       {/* Hero Banner */}
       <div className="relative h-64 sm:h-96 w-full bg-gray-900">
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent z-10" />
-        <img
-          src={salon.image}
-          alt={salon.name}
-          className="w-full h-full object-cover select-none pointer-events-none opacity-80"
-        />
+        {!imageError && salon.image ? (
+          <img
+            src={salon.image}
+            alt={salon.name}
+            className="w-full h-full object-cover select-none pointer-events-none opacity-80"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-gray-800 via-primary-dark to-black opacity-80 flex items-center justify-center">
+            <span className="text-white text-lg font-bold tracking-wider">{salon.name}</span>
+          </div>
+        )}
         
         {/* Salon Details Overlay */}
         <div className="absolute bottom-0 left-0 right-0 z-20 text-white p-4 sm:p-8">
@@ -104,8 +118,13 @@ export const SalonDetailPage: React.FC = () => {
                   {salon.rating.toFixed(1)}
                 </span>
               </div>
-              <Button size="lg" onClick={handleBookNow} className="shadow-lg h-fit">
-                Book Now
+              <Button 
+                size="lg" 
+                onClick={handleBookNow} 
+                className="shadow-lg h-fit"
+                disabled={user?.role === 'admin'}
+              >
+                {user?.role === 'admin' ? 'Booking Disabled' : 'Book Now'}
               </Button>
             </div>
           </div>
@@ -342,8 +361,13 @@ export const SalonDetailPage: React.FC = () => {
                   Confirm a 30-min slot in seconds. Pay at the shop.
                 </p>
               </div>
-              <Button size="sm" onClick={handleBookNow} className="w-full">
-                Book Appointment
+              <Button 
+                size="sm" 
+                onClick={handleBookNow} 
+                className="w-full"
+                disabled={user?.role === 'admin'}
+              >
+                {user?.role === 'admin' ? 'Booking Disabled' : 'Book Appointment'}
               </Button>
             </div>
           </div>

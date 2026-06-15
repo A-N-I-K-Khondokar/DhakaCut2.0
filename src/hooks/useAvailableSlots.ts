@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAvailableTimeSlots } from '../services/firestoreService';
+import { getAvailableTimeSlots, isMockMode } from '../services/firestoreService';
 
 export const useAvailableSlots = (staffId: string | undefined, date: string | undefined) => {
   const [data, setData] = useState<string[]>([]);
@@ -25,6 +25,18 @@ export const useAvailableSlots = (staffId: string | undefined, date: string | un
 
   useEffect(() => {
     fetchSlots();
+
+    if (isMockMode) {
+      // Re-fetch slots whenever a booking is created or cancelled so the
+      // time-slot grid instantly removes/restores the affected slot.
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'dc_bookings') {
+          fetchSlots();
+        }
+      };
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+    }
   }, [fetchSlots]);
 
   return { data, loading, error, refetch: fetchSlots };

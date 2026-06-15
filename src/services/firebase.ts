@@ -16,10 +16,12 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 
 // Use memory cache to avoid IndexedDB quota errors.
-// Do NOT use experimentalForceLongPolling in production — it disables WebSocket
-// connections and degrades performance significantly (causes 2–5s extra latency).
+// experimentalForceLongPolling: Firestore falls back to HTTP long-polling instead
+// of WebSockets. This fixes the "8-second hang" on Bangladesh ISPs/proxies that
+// block WebSocket (wss://) connections silently.
 const db = initializeFirestore(app, {
   localCache: memoryLocalCache(),
-});
+  experimentalForceLongPolling: true,
+}, 'default');
 
 export { app, auth, db };

@@ -6,11 +6,13 @@ import { BookingContext } from '../context/BookingContext';
 import { SalonCard } from '../components/SalonCard';
 import { Button } from '../components/Button';
 import { Salon } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 export const SalonListingPage: React.FC = () => {
   const { data: salons, loading, error } = useSalons();
   const bookingCtx = useContext(BookingContext);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -203,6 +205,7 @@ export const SalonListingPage: React.FC = () => {
                       salon={salon}
                       onBookClick={handleBookNow}
                       onViewDetailClick={handleViewDetails}
+                      disabledBook={user?.role === 'admin'}
                     />
                   ))}
                 </div>

@@ -6,11 +6,15 @@ import { getSalonById, getAllSalons } from '../services/firestoreService';
 import { Salon } from '../types';
 import { Button } from '../components/Button';
 import { Card, CardBody } from '../components/Card';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/useToast';
 
 export const BookingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const bookingCtx = useContext(BookingContext);
+  const { user } = useAuth();
+  const { toast } = useToast();
   
   const [salons, setSalons] = useState<Salon[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +49,10 @@ export const BookingPage: React.FC = () => {
   }, [urlSalonId, bookingCtx, navigate]);
 
   const handleStartBooking = (salon: Salon) => {
+    if (user?.role === 'admin') {
+      toast('Salon Directors cannot book appointments.', 'error');
+      return;
+    }
     if (bookingCtx) {
       bookingCtx.openBooking(salon);
     }
@@ -79,6 +87,14 @@ export const BookingPage: React.FC = () => {
                   alt={salon.name}
                   className="w-full h-full object-cover rounded-t"
                   loading="lazy"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.style.background = 'linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%)';
+                    }
+                  }}
                 />
               </div>
               <CardBody className="p-5 flex-1 flex flex-col justify-between gap-4">
@@ -87,8 +103,12 @@ export const BookingPage: React.FC = () => {
                   <h3 className="font-bold text-gray-900 mt-0.5">{salon.name}</h3>
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">{salon.address}</p>
                 </div>
-                <Button onClick={() => handleStartBooking(salon)} className="w-full text-xs font-semibold">
-                  Start Booking
+                <Button 
+                  onClick={() => handleStartBooking(salon)} 
+                  className="w-full text-xs font-semibold"
+                  disabled={user?.role === 'admin'}
+                >
+                  {user?.role === 'admin' ? 'Booking Disabled' : 'Start Booking'}
                 </Button>
               </CardBody>
             </Card>
