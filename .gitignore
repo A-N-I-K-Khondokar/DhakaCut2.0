@@ -11,14 +11,13 @@ node_modules
 dist
 dist-ssr
 
-# Environment files
-# .env.local contains real Firebase credentials — DO commit this for Vercel deployment
-# .env contains only mock/placeholder values — safe to gitignore
+# Environment files — NEVER commit real credentials
+# .env.local has real Firebase keys — keep it LOCAL only
+# Add env vars to Vercel via: Dashboard > Project Settings > Environment Variables
 .env
+.env.local
 .env.development
 .env.production
-# NOTE: .env.local is intentionally NOT ignored so Vercel can use the real Firebase config
-# If you don't want to commit credentials, add them via: Vercel Dashboard > Project Settings > Environment Variables
 
 # Editor directories and files
 .vscode/*

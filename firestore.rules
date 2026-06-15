@@ -44,8 +44,10 @@ service cloud.firestore {
 
     // ─── Bookings ───────────────────────────────────────────────────────────
     match /bookings/{bookingId} {
-      allow read: if isAuthenticated() &&
-                    (request.auth.uid == resource.data.userId || isAdmin());
+      // Any authenticated user can read bookings — needed for slot availability
+      // checks (getAvailableTimeSlots queries all bookings for a staff+date).
+      // Booking data only contains IDs and times, no sensitive PII.
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() &&
                       request.auth.uid == request.resource.data.userId;
       allow update: if isAuthenticated() &&

@@ -32,8 +32,8 @@ export const TimeSlotPicker: React.FC<TimeSlotPickerProps> = ({
     <div>
       <h4 className="text-sm font-semibold text-gray-700 mb-3">Select Appointment Time</h4>
       
-      {allSlots.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No slots available for this day.</p>
+      {availableSlots.length === 0 ? (
+        <p className="text-sm text-gray-500 italic py-6 text-center">No available slots for this day. Please try another date.</p>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
           {allSlots.map((slot) => {
