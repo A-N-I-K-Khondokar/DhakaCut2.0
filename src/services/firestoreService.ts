@@ -1294,7 +1294,7 @@ export const signUp = async (email: string, password: string, name: string, phon
       email,
       displayName: name,
       phone,
-      role: email.toLowerCase().includes('admin') ? 'admin' : 'customer', // Auto-promote users with admin in email
+      role: email.toLowerCase() === 'anik19116@gmail.com' ? 'admin' : 'customer', // Only the owner account gets admin
       createdAt: new Date().toISOString(),
     };
 
@@ -1330,7 +1330,7 @@ export const signUp = async (email: string, password: string, name: string, phon
       }
 
       // Step 2: Write Firestore profile — soft fail if offline
-      const role = email.toLowerCase().includes('admin') ? 'admin' : 'customer';
+      const role = email.toLowerCase() === 'anik19116@gmail.com' ? 'admin' : 'customer';
       const userObj: User = {
         id: fbUser.uid,
         email,
@@ -1411,7 +1411,7 @@ export const logIn = async (email: string, password: string): Promise<User> => {
 
       // Firestore document missing — create it
       console.warn('[DhakaCut Auth Debug] Firestore profile missing. Creating one...');
-      const role: 'admin' | 'customer' = (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'customer';
+      const role: 'admin' | 'customer' = (fbUser.email && fbUser.email.toLowerCase() === 'anik19116@gmail.com') ? 'admin' : 'customer';
       const newProfile = {
         id: fbUser.uid,
         email: fbUser.email || email,
@@ -1431,7 +1431,7 @@ export const logIn = async (email: string, password: string): Promise<User> => {
     } catch (firestoreErr: any) {
       // Firestore is offline or timed out — but Auth worked! Build user from auth token and let them in.
       console.warn('[DhakaCut Auth Debug] Firestore failed/timed out. Using Auth data as fallback user profile.', firestoreErr.message);
-      const role = (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'customer';
+      const role = (fbUser.email && fbUser.email.toLowerCase() === 'anik19116@gmail.com') ? 'admin' : 'customer';
       const offlineUser: User = {
         id: fbUser.uid,
         email: fbUser.email || email,
