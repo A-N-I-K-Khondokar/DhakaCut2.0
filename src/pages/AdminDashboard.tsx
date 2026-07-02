@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Calendar, DollarSign, Users, Star, Scissors, MapPin, LayoutDashboard, Settings, UserCheck, ChevronRight, Clock } from 'lucide-react';
+import { Calendar, DollarSign, Users, Star, Scissors, MapPin, LayoutDashboard, ChevronRight, Clock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
-import { getAllBookings, getAllSalons, getAllServices } from '../services/firestoreService';
-import { Booking, Salon, Service } from '../types';
+import { getAllBookings, getAllSalons, getAllServices, getAllStaff } from '../services/firestoreService';
+import { Booking, Service } from '../types';
 import { formatCurrency } from '../utils/formatters';
 import { Card, CardBody } from '../components/Card';
 
@@ -16,6 +16,8 @@ export const AdminDashboard: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [salonsCount, setSalonsCount] = useState(0);
   const [servicesCount, setServicesCount] = useState(0);
+  const [services, setServices] = useState<Service[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Security guard
@@ -32,14 +34,17 @@ export const AdminDashboard: React.FC = () => {
     const loadDashboardData = async () => {
       setLoading(true);
       try {
-        const [allBookings, allSalons, allServices] = await Promise.all([
+        const [allBookings, allSalons, allServices, allStaff] = await Promise.all([
           getAllBookings(),
           getAllSalons(),
-          getAllServices()
+          getAllServices(),
+          getAllStaff(),
         ]);
         setBookings(allBookings);
         setSalonsCount(allSalons.length);
         setServicesCount(allServices.length);
+        setServices(allServices);
+        setStaff(allStaff);
       } catch (err) {
         console.error('Failed to load dashboard data', err);
       } finally {
@@ -63,12 +68,42 @@ export const AdminDashboard: React.FC = () => {
   const totalRevenue = bookings.filter(b => b.status === 'completed' || b.status === 'confirmed').reduce((sum, b) => sum + b.totalPrice, 0);
   const totalBookingsCount = bookings.length;
   const activeBookingsCount = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length;
-  
-  // Calculate average rating from salons
-  const avgRating = 4.8; // Demo fallback average rating
+
+  // Booking Popularity by Day of Week (Mon–Sun) from real bookings
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const bookingsByDay = DAY_LABELS.map((_, i) =>
+    bookings.filter(b => {
+      if (!b.bookingDate) return false;
+      const d = new Date(b.bookingDate);
+      // getDay(): 0=Sun,1=Mon...6=Sat — map to Mon=0 index
+      return (d.getDay() + 6) % 7 === i;
+    }).length
+  );
+  const maxDayCount = Math.max(...bookingsByDay, 1);
+
+  // Top 5 Services by booking count (real data)
+  const serviceBookingCount: Record<string, number> = {};
+  bookings.forEach(b => {
+    if (b.serviceId) serviceBookingCount[b.serviceId] = (serviceBookingCount[b.serviceId] || 0) + 1;
+  });
+  const topServices = Object.entries(serviceBookingCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([serviceId, count]) => {
+      const svc = services.find(s => s.id === serviceId);
+      return { name: svc?.name || serviceId, count };
+    });
+  const maxServiceCount = Math.max(...topServices.map(s => s.count), 1);
+
+  // Top 3 Rated Stylists from real staff data
+  const topStaff = [...staff]
+    .sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0))
+    .slice(0, 3);
 
   // Recent Bookings (top 5)
-  const recentBookings = bookings.slice(0, 5);
+  const recentBookings = [...bookings]
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
@@ -190,52 +225,56 @@ export const AdminDashboard: React.FC = () => {
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Chart 1: Booking trends */}
+              {/* Chart 1: Booking trends by day of week */}
               <Card>
                 <CardBody className="p-5 space-y-4">
                   <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2">Booking Popularity by Day</h3>
-                  <div className="h-64 flex items-end justify-between gap-1 pt-4 px-2">
-                    {/* SVG/Vanilla CSS Bar chart representation */}
-                    {[12, 18, 15, 24, 30, 20, 25, 28, 35, 42, 38, 48].map((val, idx) => (
-                      <div key={idx} className="flex flex-col items-center flex-1 group">
-                        <div 
-                          className="w-full bg-primary hover:bg-primary-hover rounded-t transition-all relative"
-                          style={{ height: `${(val / 50) * 160}px` }}
-                        >
-                          <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                            {val}
-                          </span>
+                  {bookingsByDay.every(v => v === 0) ? (
+                    <p className="text-xs text-gray-400 text-center py-8">No booking data yet.</p>
+                  ) : (
+                    <div className="h-64 flex items-end justify-between gap-1 pt-4 px-2">
+                      {bookingsByDay.map((val, idx) => (
+                        <div key={idx} className="flex flex-col items-center flex-1 group">
+                          <div
+                            className="w-full bg-primary hover:bg-primary-hover rounded-t transition-all relative"
+                            style={{ height: `${(val / maxDayCount) * 160}px`, minHeight: val > 0 ? '4px' : '0' }}
+                          >
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
+                              {val}
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-gray-400 font-semibold mt-1">{DAY_LABELS[idx]}</span>
                         </div>
-                        <span className="text-[9px] text-gray-400 font-semibold mt-1">D{idx+1}</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardBody>
               </Card>
 
-              {/* Chart 2: Top services */}
+              {/* Chart 2: Top services by real booking count */}
               <Card>
                 <CardBody className="p-5 space-y-4">
-                  <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2">Top 5 Services by Sales</h3>
-                  <div className="space-y-3.5 pt-2">
-                    {[
-                      { name: 'Classic Haircut', count: 120, percent: '80%' },
-                      { name: 'Royal Hot Towel Shave', count: 90, percent: '60%' },
-                      { name: 'Hair Color & Highlights', count: 45, percent: '30%' },
-                      { name: 'Charcoal Deep Cleansing Facial', count: 30, percent: '20%' },
-                      { name: 'Beard Trim & Detail', count: 20, percent: '15%' }
-                    ].map((serv, idx) => (
-                      <div key={idx} className="space-y-1 text-xs">
-                        <div className="flex justify-between font-semibold text-gray-700">
-                          <span>{serv.name}</span>
-                          <span>{serv.count} bookings</span>
+                  <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2">Top 5 Services by Bookings</h3>
+                  {topServices.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-8">No booking data yet.</p>
+                  ) : (
+                    <div className="space-y-3.5 pt-2">
+                      {topServices.map((serv, idx) => (
+                        <div key={idx} className="space-y-1 text-xs">
+                          <div className="flex justify-between font-semibold text-gray-700">
+                            <span>{serv.name}</span>
+                            <span>{serv.count} bookings</span>
+                          </div>
+                          <div className="w-full bg-gray-150 h-2 rounded overflow-hidden">
+                            <div
+                              className="bg-primary h-2 rounded"
+                              style={{ width: `${(serv.count / maxServiceCount) * 100}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-gray-150 h-2 rounded overflow-hidden">
-                          <div className="bg-primary h-2 rounded" style={{ width: serv.percent }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardBody>
               </Card>
             </div>
@@ -268,30 +307,34 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Staff Rankings */}
+              {/* Top Rated Stylists — real staff sorted by avgRating */}
               <div className="border border-gray-150 rounded-lg p-5 bg-white shadow-subtle space-y-4">
                 <h3 className="font-bold text-gray-800 text-sm border-b border-gray-100 pb-2">Top Rated Stylists</h3>
-                <div className="space-y-4">
-                  {[
-                    { name: 'Arifin Shuvo', rating: 4.9, count: 56, image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100' },
-                    { name: 'Kabir Khan', rating: 4.9, count: 42, image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100' },
-                    { name: 'Rafsan Ahmed', rating: 4.8, count: 28, image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100' }
-                  ].map((st, idx) => (
-                    <div key={idx} className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full overflow-hidden border border-gray-200">
-                        <img src={st.image} alt={st.name} className="h-full w-full object-cover" />
+                {topStaff.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">No staff data yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {topStaff.map((st, idx) => (
+                      <div key={idx} className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center">
+                          {st.image ? (
+                            <img src={st.image} alt={st.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-sm font-bold text-gray-500">{st.name?.[0]}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 text-xs">
+                          <p className="font-bold text-gray-900 truncate">{st.name}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{st.reviewCount || 0} reviews</p>
+                        </div>
+                        <div className="text-right flex items-center gap-0.5 text-xs font-bold text-gray-800">
+                          <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
+                          <span>{(st.avgRating || 0).toFixed(1)}</span>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0 text-xs">
-                        <p className="font-bold text-gray-900 truncate">{st.name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{st.count} appointments</p>
-                      </div>
-                      <div className="text-right flex items-center gap-0.5 text-xs font-bold text-gray-800">
-                        <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
-                        <span>{st.rating.toFixed(1)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>
