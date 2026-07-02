@@ -11,7 +11,7 @@ import {
   updateBookingStatus,
   isMockMode
 } from '../services/firestoreService';
-import { Booking, Salon, Staff, Service, User } from '../types';
+import { Booking, Salon, Staff, Service } from '../types';
 import { AdminTable, TableColumn } from '../components/AdminTable';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -27,7 +27,6 @@ export const AdminBookings: React.FC = () => {
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [salons, setSalons] = useState<Salon[]>([]);
-  const [usersList, setUsersList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Maps for O(1) hydration
@@ -77,10 +76,6 @@ export const AdminBookings: React.FC = () => {
         allServicesData.forEach(sv => { svMap[sv.id] = sv; });
         setServiceMap(svMap);
 
-        if (isMockMode) {
-          const mockUsers = localStorage.getItem('dc_users');
-          if (mockUsers) setUsersList(JSON.parse(mockUsers));
-        }
       } catch (err) {
         console.error('Error loading static data:', err);
       }
@@ -132,10 +127,6 @@ export const AdminBookings: React.FC = () => {
     }
   };
 
-  const getClientEmail = (booking: Booking) => {
-    const matched = usersList.find(u => u.id === booking.userId);
-    return matched ? matched.email : 'client@dhacut.com'; // Fallback
-  };
 
   const getHydratedData = (booking: Booking) => {
     const key = `${booking.salonId}-${booking.staffId}-${booking.serviceId}`;
@@ -149,7 +140,7 @@ export const AdminBookings: React.FC = () => {
     },
     {
       header: 'Client Email',
-      render: (item) => getClientEmail(item)
+      render: (item) => item.userEmail || 'Legacy booking — email unavailable'
     },
     {
       header: 'Branch Location',
@@ -315,7 +306,10 @@ export const AdminBookings: React.FC = () => {
                 )}
                 <div>
                   <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Client Details</span>
-                  <span className="font-semibold text-gray-900">{getClientEmail(selectedBooking)}</span>
+                  <span className="font-semibold text-gray-900">{selectedBooking.userEmail || 'Legacy booking — email unavailable'}</span>
+                  {selectedBooking.userName && (
+                    <span className="text-xs text-gray-750 block">Name: {selectedBooking.userName}</span>
+                  )}
                   <span className="text-xs text-gray-500 block">ID: {selectedBooking.userId}</span>
                 </div>
                 <div>

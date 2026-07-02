@@ -97,6 +97,8 @@ export const BookingModal: React.FC = () => {
     try {
       await makeBooking({
         userId: user.id,
+        userEmail: user.email || '',
+        userName: user.displayName || user.email?.split('@')[0] || 'Client',
         salonId: salon.id,
         staffId: staff.id,
         serviceId: service.id,

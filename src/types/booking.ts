@@ -1,6 +1,8 @@
 export interface Booking {
   id: string;
   userId: string;
+  userEmail: string;
+  userName?: string;
   salonId: string;
   staffId: string;
   serviceId: string;
