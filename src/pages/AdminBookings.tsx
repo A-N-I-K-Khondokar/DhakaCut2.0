@@ -307,6 +307,12 @@ export const AdminBookings: React.FC = () => {
                   <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Booking Identifier</span>
                   <span className="font-bold text-gray-950">{selectedBooking.id}</span>
                 </div>
+                {selectedBooking.status === 'cancelled' && selectedBooking.cancelReason && (
+                  <div className="p-2.5 bg-error-light/30 border border-error/20 text-error rounded text-xs">
+                    <span className="font-bold uppercase block text-[9px] tracking-wider mb-0.5">Cancellation Reason</span>
+                    <p className="italic">"{selectedBooking.cancelReason}"</p>
+                  </div>
+                )}
                 <div>
                   <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Client Details</span>
                   <span className="font-semibold text-gray-900">{getClientEmail(selectedBooking)}</span>

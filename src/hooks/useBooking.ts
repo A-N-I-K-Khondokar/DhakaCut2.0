@@ -31,11 +31,11 @@ export const useCancelBooking = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const mutate = async (bookingId: string): Promise<void> => {
+  const mutate = async (bookingId: string, reason?: string): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      await cancelBooking(bookingId);
+      await cancelBooking(bookingId, reason);
     } catch (err: any) {
       setError(err.message || 'Failed to cancel booking');
       throw err;

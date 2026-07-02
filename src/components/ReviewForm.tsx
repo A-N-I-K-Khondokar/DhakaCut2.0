@@ -8,12 +8,14 @@ import { Button } from './Button';
 interface ReviewFormProps {
   staffId: string;
   salonId: string;
+  bookingId?: string;
   onSuccess?: () => void;
 }
 
 export const ReviewForm: React.FC<ReviewFormProps> = ({
   staffId,
   salonId,
+  bookingId,
   onSuccess,
 }) => {
   const { user } = useAuth();
@@ -40,6 +42,7 @@ export const ReviewForm: React.FC<ReviewFormProps> = ({
       await submitReview({
         salonId,
         staffId,
+        bookingId: bookingId || '',
         userId: user.id,
         userName: user.displayName || 'Anonymous Client',
         rating,

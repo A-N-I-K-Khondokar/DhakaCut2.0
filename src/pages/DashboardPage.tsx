@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, DollarSign, UserCheck, ShieldAlert, Award, FileText, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, DollarSign, UserCheck, ShieldAlert, Award, FileText, AlertCircle, MessageSquare } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useBookings, useCancelBooking } from '../hooks/useBooking';
-import { updateBookingStatus, getSalonById, getStaffById, getServiceById, getAllSalons, getAllStaff, getAllServices, isMockMode } from '../services/firestoreService';
+import { updateBookingStatus, getSalonById, getStaffById, getServiceById, getAllSalons, getAllStaff, getAllServices, isMockMode, getReviewsByUser } from '../services/firestoreService';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useToast } from '../hooks/useToast';
 import { Card, CardBody, CardHeader } from '../components/Card';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { Booking, Salon, Staff, Service } from '../types';
+import { Booking, Salon, Staff, Service, Review } from '../types';
 import { formatCurrency, formatDuration, formatLongDate, formatDate } from '../utils/formatters';
 import { getUpcomingDates, formatDateKey } from '../utils/helpers';
 import { TimeSlotPicker } from '../components/TimeSlotPicker';
 import { getAvailableTimeSlots } from '../services/firestoreService';
+import { ReviewForm } from '../components/ReviewForm';
 
 export const DashboardPage: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
@@ -31,6 +32,8 @@ export const DashboardPage: React.FC = () => {
   // Modal states
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [cancelBookingId, setCancelBookingId] = useState<string | null>(null);
+  const [cancelReasonText, setCancelReasonText] = useState<string>('');
+  const [rateBooking, setRateBooking] = useState<Booking | null>(null);
   
   // Reschedule states
   const [rescheduleBookingItem, setRescheduleBookingItem] = useState<Booking | null>(null);
@@ -38,6 +41,9 @@ export const DashboardPage: React.FC = () => {
   const [rescheduleTime, setRescheduleTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [slotsLoading, setSlotsLoading] = useState<boolean>(false);
+
+  // User reviews cache
+  const [userReviews, setUserReviews] = useState<Review[]>([]);
 
   // Hydrated details cache
   const [hydratedDetails, setHydratedDetails] = useState<Record<string, { salon: Salon | null; staff: Staff | null; service: Service | null }>>({});
@@ -48,6 +54,22 @@ export const DashboardPage: React.FC = () => {
       navigate('/login?redirect=dashboard');
     }
   }, [user, authLoading, navigate]);
+
+  // Load user's reviews to check which bookings are reviewed
+  const fetchUserReviews = async () => {
+    if (user?.id) {
+      try {
+        const reviews = await getReviewsByUser(user.id);
+        setUserReviews(reviews);
+      } catch (err) {
+        console.error('Failed to fetch user reviews', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchUserReviews();
+  }, [user, bookings]);
 
   // Load hydrated data (salon, staff, service details) for bookings
   // Uses a single parallel batch fetch — no N+1 sequential queries
@@ -132,9 +154,10 @@ export const DashboardPage: React.FC = () => {
   const handleConfirmCancel = async () => {
     if (!cancelBookingId) return;
     try {
-      await cancelBookingItem(cancelBookingId);
+      await cancelBookingItem(cancelBookingId, cancelReasonText);
       toast('Appointment cancelled successfully.', 'success');
       setCancelBookingId(null);
+      setCancelReasonText('');
       refetch();
     } catch (err: any) {
       toast(err.message || 'Failed to cancel appointment.', 'error');
@@ -315,7 +338,7 @@ export const DashboardPage: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => setDetailBooking(booking)}
-                        className="text-[11px] px-1 font-semibold"
+                        className="text-[11px] px-1 font-semibold text-primary border-primary/30 hover:bg-primary hover:text-white hover:border-primary transition-colors"
                       >
                         Details
                       </Button>
@@ -326,7 +349,7 @@ export const DashboardPage: React.FC = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleRescheduleClick(booking)}
-                            className="text-[11px] px-1 font-semibold text-primary border-primary/30 hover:bg-primary-light/20"
+                            className="text-[11px] px-1 font-semibold text-success border-success/30 hover:bg-success hover:text-white hover:border-success transition-colors"
                           >
                             Reschedule
                           </Button>
@@ -334,11 +357,32 @@ export const DashboardPage: React.FC = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => handleCancelClick(booking.id)}
-                            className="text-[11px] px-1 font-semibold text-error border-error/30 hover:bg-error-light/20"
+                            className="text-[11px] px-1 font-semibold text-error border-error/30 hover:bg-error hover:text-white hover:border-error transition-colors"
                           >
                             Cancel
                           </Button>
                         </>
+                      )}
+
+                      {activeTab === 'past' && booking.status === 'completed' && (
+                        (() => {
+                          const isReviewed = userReviews.some(r => r.bookingId === booking.id);
+                          return isReviewed ? (
+                            <span className="col-span-2 text-center text-[10px] text-success bg-success/10 border border-success/20 rounded py-1.5 px-2.5 font-bold flex items-center justify-center gap-1 select-none">
+                              ✓ Feedback Submitted
+                            </span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRateBooking(booking)}
+                              className="col-span-2 text-[11px] px-1 font-semibold text-success border-success/30 hover:bg-success hover:text-white hover:border-success transition-colors flex items-center justify-center gap-1"
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              Rate Barber
+                            </Button>
+                          );
+                        })()
                       )}
                     </div>
                   </CardBody>
@@ -403,7 +447,7 @@ export const DashboardPage: React.FC = () => {
         {/* CANCELLATION DIALOG */}
         <Modal
           isOpen={!!cancelBookingId}
-          onClose={() => setCancelBookingId(null)}
+          onClose={() => { setCancelBookingId(null); setCancelReasonText(''); }}
           title="Cancel Appointment?"
           size="sm"
         >
@@ -417,9 +461,24 @@ export const DashboardPage: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Cancellation Feedback option */}
+            <div className="flex flex-col gap-1.5 pt-2">
+              <label htmlFor="cancel-reason" className="text-xs text-gray-700 font-semibold">
+                We're sorry to see you cancel. Please let us know how we can improve:
+              </label>
+              <textarea
+                id="cancel-reason"
+                rows={2}
+                value={cancelReasonText}
+                onChange={(e) => setCancelReasonText(e.target.value)}
+                placeholder="Tell us why... (optional)"
+                className="w-full text-xs border border-gray-300 rounded p-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-error focus:border-error resize-none"
+              />
+            </div>
             
             <div className="flex gap-3 justify-end border-t border-gray-150 pt-4">
-              <Button variant="outline" size="sm" onClick={() => setCancelBookingId(null)}>
+              <Button variant="outline" size="sm" onClick={() => { setCancelBookingId(null); setCancelReasonText(''); }}>
                 Keep Appointment
               </Button>
               <Button
@@ -504,6 +563,31 @@ export const DashboardPage: React.FC = () => {
                   Reschedule Appointment
                 </Button>
               </div>
+            </div>
+          )}
+        </Modal>
+        {/* RATE BARBER MODAL */}
+        <Modal
+          isOpen={!!rateBooking}
+          onClose={() => setRateBooking(null)}
+          title="Rate Your Barber"
+          size="sm"
+        >
+          {rateBooking && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500">
+                Please share your feedback for <strong>{getHydratedData(rateBooking).staff?.name || 'your barber'}</strong> at <strong>{getHydratedData(rateBooking).salon?.name}</strong>.
+              </p>
+              <ReviewForm
+                staffId={rateBooking.staffId}
+                salonId={rateBooking.salonId}
+                bookingId={rateBooking.id}
+                onSuccess={() => {
+                  setRateBooking(null);
+                  fetchUserReviews();
+                  refetch();
+                }}
+              />
             </div>
           )}
         </Modal>

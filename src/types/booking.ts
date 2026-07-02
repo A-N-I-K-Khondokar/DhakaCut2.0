@@ -10,4 +10,5 @@ export interface Booking {
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
+  cancelReason?: string;
 }

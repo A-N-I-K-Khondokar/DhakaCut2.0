@@ -1163,38 +1163,7 @@ const MOCK_STAFF: Staff[] = [
   }
 ];
 
-const MOCK_REVIEWS: Review[] = [
-  {
-    id: 'review-1',
-    salonId: 'salon-1',
-    staffId: 'staff-1',
-    userId: 'user-customer',
-    userName: 'Tanvir Rahman',
-    rating: 5,
-    comment: 'Kabir is the best barber in Banani! Absolute perfection on the fade.',
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'review-2',
-    salonId: 'salon-1',
-    staffId: 'staff-2',
-    userId: 'user-customer2',
-    userName: 'Sadman Sakib',
-    rating: 4,
-    comment: 'Great hot towel shave. Very relaxing experience.',
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'review-3',
-    salonId: 'salon-2',
-    staffId: 'staff-3',
-    userId: 'user-customer3',
-    userName: 'Mehrab Hossain',
-    rating: 5,
-    comment: 'Exceptional service and extremely clean environment. Arifin is a master of his craft.',
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  }
-];
+const MOCK_REVIEWS: Review[] = [];
 
 // Initialize mock localStorage tables if empty
 const initializeLocalStorage = () => {
@@ -1211,6 +1180,13 @@ const initializeLocalStorage = () => {
     }
   }
 
+  // Force reset reviews and staff ratings if they have old demo data
+  const hasDemoReviews = localStorage.getItem('dc_reviews') && localStorage.getItem('dc_reviews') !== '[]';
+  if (hasDemoReviews) {
+    localStorage.setItem('dc_reviews', JSON.stringify([]));
+    needsReseed = true;
+  }
+
   if (!existingSalons || needsReseed) {
     localStorage.setItem('dc_salons', JSON.stringify(MOCK_SALONS));
   }
@@ -1218,10 +1194,15 @@ const initializeLocalStorage = () => {
     localStorage.setItem('dc_services', JSON.stringify(MOCK_SERVICES));
   }
   if (!localStorage.getItem('dc_staff') || needsReseed) {
-    localStorage.setItem('dc_staff', JSON.stringify(MOCK_STAFF));
+    const staffWithZeroRatings = MOCK_STAFF.map(s => ({
+      ...s,
+      avgRating: 0.0,
+      reviewCount: 0
+    }));
+    localStorage.setItem('dc_staff', JSON.stringify(staffWithZeroRatings));
   }
   if (!localStorage.getItem('dc_reviews')) {
-    localStorage.setItem('dc_reviews', JSON.stringify(MOCK_REVIEWS));
+    localStorage.setItem('dc_reviews', JSON.stringify([]));
   }
   if (!localStorage.getItem('dc_bookings')) {
     localStorage.setItem('dc_bookings', JSON.stringify([]));
@@ -2208,8 +2189,28 @@ export const updateBookingStatus = async (id: string, status: Booking['status'])
   }
 };
 
-export const cancelBooking = async (id: string): Promise<void> => {
-  await updateBookingStatus(id, 'cancelled');
+export const cancelBooking = async (id: string, reason?: string): Promise<void> => {
+  if (isMockMode) {
+    const bookings = getLocalData<Booking>('dc_bookings');
+    const idx = bookings.findIndex(b => b.id === id);
+    if (idx !== -1) {
+      bookings[idx].status = 'cancelled';
+      bookings[idx].cancelReason = reason || '';
+      bookings[idx].updatedAt = new Date().toISOString();
+      setLocalData('dc_bookings', bookings);
+    }
+  } else {
+    try {
+      await updateDoc(doc(db, 'bookings', id), {
+        status: 'cancelled',
+        cancelReason: reason || '',
+        updatedAt: serverTimestamp()
+      });
+    } catch (err: any) {
+      console.error('[DhakaCut Service] Error in cancelBooking:', err);
+      throw new Error('Failed to cancel appointment.');
+    }
+  }
 };
 
 /**
@@ -2359,6 +2360,25 @@ export const getReviewsBySalon = async (salonId: string): Promise<Review[]> => {
   }
 };
 
+export const getReviewsByUser = async (userId: string): Promise<Review[]> => {
+  if (isMockMode) {
+    return getLocalData<Review>('dc_reviews')
+      .filter(r => r.userId === userId);
+  }
+  try {
+    const q = query(collection(db, 'reviews'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const reviews: Review[] = [];
+    querySnapshot.forEach((docSnap) => {
+      reviews.push(mapDoc<Review>(docSnap));
+    });
+    return reviews;
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Error in getReviewsByUser:', err);
+    throw new Error('Failed to fetch reviews for this user.');
+  }
+};
+
 export const deleteReview = async (id: string): Promise<void> => {
   let staffId = '';
   if (isMockMode) {
@@ -2402,7 +2422,7 @@ export const calculateStaffAvgRating = async (staffId: string): Promise<{ avgRat
     const reviewCount = staffReviews.length;
     const avgRating = reviewCount > 0 
       ? parseFloat((staffReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount).toFixed(1))
-      : 5.0;
+      : 0.0;
 
     // Update staff document with new scores
     await updateStaff(staffId, { avgRating, reviewCount });
