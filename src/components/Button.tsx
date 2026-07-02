@@ -24,7 +24,7 @@ export const Button: React.FC<ButtonProps> = ({
     outline: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
     'outline-white': 'bg-transparent text-white border border-white hover:bg-white hover:text-blue-700 focus:ring-white transition-colors duration-200',
     'outline-theme': 'bg-transparent text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
-    white: 'bg-white text-blue-700 border border-white hover:bg-gray-100 hover:text-blue-800 focus:ring-blue-200 transition-colors duration-200',
+    white: 'bg-white text-blue-700 border border-white hover:bg-white hover:text-blue-700 focus:ring-blue-200 transition-colors duration-200',
     danger: 'bg-red-600 text-white border border-red-600 hover:bg-red-700 focus:ring-red-500 transition-colors duration-200',
   };
 
