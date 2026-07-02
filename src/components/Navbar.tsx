@@ -57,19 +57,19 @@ export const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center space-x-8">
             <Link 
               to="/" 
-              className={`text-sm font-medium transition-colors ${isActive('/') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`text-sm font-medium transition-colors ${isActive('/') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-primary'}`}
             >
               Home
             </Link>
             <Link 
               to="/salons" 
-              className={`text-sm font-medium transition-colors ${isActive('/salons') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`text-sm font-medium transition-colors ${isActive('/salons') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-primary'}`}
             >
               Book Salon
             </Link>
             <Link 
               to="/map-search" 
-              className={`text-sm font-medium transition-colors ${isActive('/map-search') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`text-sm font-medium transition-colors ${isActive('/map-search') ? 'text-primary border-b-2 border-primary py-5' : 'text-gray-600 hover:text-primary'}`}
             >
               📍 Find on Map
             </Link>
@@ -131,7 +131,7 @@ export const Navbar: React.FC = () => {
               </div>
             ) : (
               <div className="flex items-center gap-4">
-                <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+                <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-primary">
                   Login
                 </Link>
                 <Button size="sm" onClick={() => navigate('/signup')}>
@@ -158,19 +158,19 @@ export const Navbar: React.FC = () => {
         <div className="md:hidden border-t border-gray-150 bg-white px-2 pt-2 pb-4 space-y-1 animate-slide-in">
           <Link
             to="/"
-            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
+            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-primary-light/30 hover:text-primary'}`}
           >
             Home
           </Link>
           <Link
             to="/salons"
-            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/salons') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
+            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/salons') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-primary-light/30 hover:text-primary'}`}
           >
             Book Salon
           </Link>
           <Link
             to="/map-search"
-            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/map-search') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}
+            className={`block px-3 py-2 rounded text-base font-medium ${isActive('/map-search') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-primary-light/30 hover:text-primary'}`}
           >
             📍 Find on Map
           </Link>

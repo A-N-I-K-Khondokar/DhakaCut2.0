@@ -70,12 +70,11 @@ export const HomePage: React.FC = () => {
             </Button>
             <Button 
               size="lg" 
-              variant="white" 
               onClick={() => navigate('/map-search')} 
             >
               📍 Find Salon Near Me
             </Button>
-            <Button size="lg" variant="outline-theme" onClick={() => navigate('/signup')}>
+            <Button size="lg" onClick={() => navigate('/signup')}>
               Join DhakaCut
             </Button>
           </div>
