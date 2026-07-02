@@ -222,7 +222,7 @@ export const AdminSalons: React.FC = () => {
       </aside>
 
       {/* Main Panel */}
-      <main className="flex-1 p-6 md:p-8 space-y-6">
+      <main className="flex-1 min-w-0 p-6 md:p-8 space-y-6">
         <div className="flex justify-between items-center border-b border-gray-200 pb-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Salon Branch Management</h1>

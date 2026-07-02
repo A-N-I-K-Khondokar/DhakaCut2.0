@@ -230,7 +230,7 @@ export const BookingModal: React.FC = () => {
         {step === 3 && (
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-3">Select Appointment Date</h4>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 overflow-x-auto pb-2">
+            <div className="flex flex-nowrap overflow-x-auto sm:grid sm:grid-cols-4 md:grid-cols-7 gap-2 pb-2 scrollbar-thin">
               {upcomingDates.map((d) => {
                 const dateKey = formatDateKey(d);
                 const isSelected = date === dateKey;
@@ -241,7 +241,7 @@ export const BookingModal: React.FC = () => {
                     key={dateKey}
                     type="button"
                     onClick={() => setDate(dateKey)}
-                    className={`py-3 px-2 border rounded flex flex-col items-center justify-center transition-all ${
+                    className={`py-3 px-2 border rounded flex flex-col items-center justify-center transition-all flex-shrink-0 min-w-[68px] sm:min-w-0 ${
                       isSelected
                         ? 'border-primary bg-primary text-white'
                         : 'border-gray-200 bg-white hover:border-primary hover:text-primary'

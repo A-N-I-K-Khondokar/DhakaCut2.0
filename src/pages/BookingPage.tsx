@@ -78,7 +78,7 @@ export const BookingPage: React.FC = () => {
           <span>{error}</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {salons.map((salon) => (
             <Card key={salon.id} className="flex flex-col h-full hover:border-primary transition-all">
               <div className="h-40 bg-gray-100">

@@ -155,7 +155,7 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="md:hidden border-t border-gray-150 bg-white px-2 pt-2 pb-4 space-y-1">
+        <div className="md:hidden border-t border-gray-150 bg-white px-2 pt-2 pb-4 space-y-1 animate-slide-in">
           <Link
             to="/"
             className={`block px-3 py-2 rounded text-base font-medium ${isActive('/') ? 'bg-primary-light text-primary' : 'text-gray-700 hover:bg-gray-50'}`}

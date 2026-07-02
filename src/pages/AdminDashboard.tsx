@@ -148,7 +148,7 @@ export const AdminDashboard: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-8 space-y-6">
+      <main className="flex-1 min-w-0 p-6 md:p-8 space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center border-b border-gray-200 pb-4">
           <div>

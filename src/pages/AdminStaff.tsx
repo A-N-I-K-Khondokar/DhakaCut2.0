@@ -281,7 +281,7 @@ export const AdminStaff: React.FC = () => {
       </aside>
 
       {/* Main Panel */}
-      <main className="flex-1 p-6 md:p-8 space-y-6">
+      <main className="flex-1 min-w-0 p-6 md:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-200 pb-4 gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Staff Management</h1>

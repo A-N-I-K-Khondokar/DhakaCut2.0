@@ -97,7 +97,7 @@ export const SalonMapView: React.FC<SalonMapViewProps> = ({
   const markerRefs = useRef<{ [key: string]: L.Marker | null }>({});
 
   return (
-    <div className="relative w-full rounded-lg overflow-hidden border border-gray-250 shadow-sm" style={{ height }}>
+    <div className="relative w-full rounded-lg overflow-hidden border border-gray-250 shadow-sm h-[300px] sm:h-[400px] md:h-[450px]" style={height ? { height } : undefined}>
       <MapContainer
         center={mapCenter}
         zoom={mapZoom}
