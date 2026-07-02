@@ -33,14 +33,6 @@ export const AdminSalons: React.FC = () => {
   const [openTime, setOpenTime] = useState('09:00');
   const [closeTime, setCloseTime] = useState('20:00');
 
-  // Security check
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== 'admin') {
-        navigate('/');
-      }
-    }
-  }, [user, authLoading, navigate]);
 
   const loadSalons = async () => {
     setLoading(true);

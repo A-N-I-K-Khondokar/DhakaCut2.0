@@ -33,14 +33,6 @@ export const AdminServices: React.FC = () => {
   const [category, setCategory] = useState<'Hair' | 'Beard' | 'Shave' | 'Color' | 'Treatment'>('Hair');
   const [salons, setSalons] = useState<Salon[]>([]);
 
-  // Security check
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== 'admin') {
-        navigate('/');
-      }
-    }
-  }, [user, authLoading, navigate]);
 
   const loadServices = async () => {
     setLoading(true);

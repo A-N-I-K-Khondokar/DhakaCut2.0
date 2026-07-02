@@ -20,15 +20,6 @@ export const AdminDashboard: React.FC = () => {
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Security guard
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== 'admin') {
-        toast('Access Denied. Admins only.', 'error');
-        navigate('/');
-      }
-    }
-  }, [user, authLoading, navigate, toast]);
 
   useEffect(() => {
     const loadDashboardData = async () => {

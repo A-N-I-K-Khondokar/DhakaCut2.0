@@ -7,6 +7,7 @@ import { ToastContainer } from './components/Toast';
 import { BookingModal } from './components/BookingModal';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
+import { AdminRoute } from './components/AdminRoute';
 
 // Pages
 import { HomePage } from './pages/HomePage';
@@ -73,12 +74,14 @@ export const App: React.FC = () => {
                 <Route path="/dashboard" element={<DashboardPage />} />
               </Route>
 
-              {/* Admin Management Pages (Omit customer layouts) */}
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/salons" element={<AdminSalons />} />
-              <Route path="/admin/staff" element={<AdminStaff />} />
-              <Route path="/admin/services" element={<AdminServices />} />
-              <Route path="/admin/bookings" element={<AdminBookings />} />
+              {/* Admin Management Pages (Omit customer layouts) guarded by AdminRoute */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/salons" element={<AdminSalons />} />
+                <Route path="/admin/staff" element={<AdminStaff />} />
+                <Route path="/admin/services" element={<AdminServices />} />
+                <Route path="/admin/bookings" element={<AdminBookings />} />
+              </Route>
 
               {/* One-time database seeding tool */}
               <Route path="/seed" element={<SeedPage />} />

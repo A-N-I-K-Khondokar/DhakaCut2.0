@@ -44,14 +44,6 @@ export const AdminBookings: React.FC = () => {
   // Cached hydrations
   const [hydratedDetails, setHydratedDetails] = useState<Record<string, { salon: Salon | null; staff: Staff | null; service: Service | null }>>({});
 
-  // Security check — wait for auth to resolve before redirecting
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== 'admin') {
-        navigate('/');
-      }
-    }
-  }, [user, authLoading, navigate]);
 
   // Load static data once on mount
   useEffect(() => {

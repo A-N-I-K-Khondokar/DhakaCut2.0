@@ -41,14 +41,6 @@ export const AdminStaff: React.FC = () => {
   const [image, setImage] = useState('');
   const [selectedSpecializations, setSelectedSpecializations] = useState<string[]>([]);
 
-  // Security check
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user || user.role !== 'admin') {
-        navigate('/');
-      }
-    }
-  }, [user, authLoading, navigate]);
 
   // Load Salons and Services initially
   useEffect(() => {
