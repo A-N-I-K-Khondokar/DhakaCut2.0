@@ -4,6 +4,8 @@ import {
   signOut, 
   sendPasswordResetEmail,
   updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
   User as FirebaseUser
 } from 'firebase/auth';
 import { 
@@ -1444,6 +1446,118 @@ export const logIn = async (email: string, password: string): Promise<User> => {
       console.log('[DhakaCut Auth Debug] Fallback login successful via Auth data. Role:', role);
       return offlineUser;
     }
+  }
+};
+
+export const signInWithGoogle = async (): Promise<User> => {
+  if (isMockMode) {
+    // In mock mode, simulate a Google sign-in as a demo customer
+    const mockGoogleUser: User = {
+      id: `mock-uid-google-${generateId(6)}`,
+      email: 'google.user@gmail.com',
+      displayName: 'Google Demo User',
+      phone: '',
+      role: 'customer',
+      createdAt: new Date().toISOString(),
+    };
+    const users = getLocalData<User>('dc_users');
+    const existing = users.find(u => u.email === mockGoogleUser.email);
+    if (!existing) {
+      users.push(mockGoogleUser);
+      setLocalData('dc_users', users);
+    }
+    const finalUser = existing || mockGoogleUser;
+    localStorage.setItem('dhakacut_user', JSON.stringify(finalUser));
+    return finalUser;
+  }
+
+  const provider = new GoogleAuthProvider();
+  // Request email scope explicitly
+  provider.addScope('email');
+  provider.addScope('profile');
+
+  try {
+    console.log('[DhakaCut Auth Debug] Starting Google Sign-In...');
+    const result = await signInWithPopup(auth, provider);
+    const fbUser = result.user;
+    console.log('[DhakaCut Auth Debug] Google Sign-In succeeded. UID:', fbUser.uid);
+
+    const role: 'admin' | 'customer' =
+      fbUser.email && fbUser.email.toLowerCase() === 'anik19116@gmail.com'
+        ? 'admin'
+        : 'customer';
+
+    // Check if a Firestore profile already exists
+    try {
+      const userDoc = await withTimeout(
+        getDoc(doc(db, 'users', fbUser.uid)),
+        8000,
+        'googleSignIn getDoc'
+      );
+
+      if (userDoc.exists()) {
+        // Returning Google user — merge latest photoURL from Google Auth
+        const userData = mapDoc<User>(userDoc);
+        const merged: User = {
+          ...userData,
+          photoURL: fbUser.photoURL || userData.photoURL || undefined,
+        };
+        // Persist the updated photoURL back to Firestore silently
+        if (fbUser.photoURL && userData.photoURL !== fbUser.photoURL) {
+          updateDoc(doc(db, 'users', fbUser.uid), { photoURL: fbUser.photoURL }).catch(() => {});
+        }
+        localStorage.setItem('dhakacut_user', JSON.stringify(merged));
+        console.log('[DhakaCut Auth Debug] Existing Google user profile loaded.');
+        return merged;
+      }
+
+      // New Google user — create a Firestore profile
+      console.log('[DhakaCut Auth Debug] New Google user. Creating Firestore profile...');
+      const newProfile: User = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        displayName: fbUser.displayName || fbUser.email?.split('@')[0] || 'Google User',
+        phone: '',
+        role,
+        createdAt: new Date().toISOString(),
+        photoURL: fbUser.photoURL || undefined,
+      };
+      await withTimeout(
+        setDoc(doc(db, 'users', fbUser.uid), {
+          ...newProfile,
+          createdAt: serverTimestamp(),
+        }),
+        8000,
+        'googleSignIn setDoc'
+      );
+      localStorage.setItem('dhakacut_user', JSON.stringify(newProfile));
+      console.log('[DhakaCut Auth Debug] New Google user profile created. Role:', role);
+      return newProfile;
+    } catch (firestoreErr: any) {
+      // Firestore failed/timed out — build fallback from Google Auth data
+      console.warn('[DhakaCut Auth Debug] Firestore failed during Google sign-in. Using Auth data as fallback.', firestoreErr.message);
+      const fallback: User = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        displayName: fbUser.displayName || fbUser.email?.split('@')[0] || 'Google User',
+        phone: '',
+        role,
+        createdAt: new Date().toISOString(),
+        photoURL: fbUser.photoURL || undefined,
+      };
+      localStorage.setItem('dhakacut_user', JSON.stringify(fallback));
+      return fallback;
+    }
+  } catch (err: any) {
+    console.error('[DhakaCut Service] Google Sign-In error:', err);
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+      throw new Error('Google sign-in was cancelled.');
+    } else if (err.code === 'auth/popup-blocked') {
+      throw new Error('Popup was blocked. Please allow popups for this site and try again.');
+    } else if (err.code === 'auth/network-request-failed') {
+      throw new Error('Network error. Please check your connection and try again.');
+    }
+    throw new Error(err.message || 'Failed to sign in with Google.');
   }
 };
 

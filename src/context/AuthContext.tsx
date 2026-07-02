@@ -7,6 +7,7 @@ import {
   logIn as authLogIn, 
   logOut as authLogOut, 
   signUp as authSignUp,
+  signInWithGoogle as authGoogleSignIn,
   updateUserProfile,
   resetPassword as authResetPassword,
   isMockMode
@@ -23,6 +24,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>;
   signup: (email: string, password: string, name: string, phone: string) => Promise<User>;
   logout: () => Promise<void>;
+  googleSignIn: () => Promise<User>;
   resetPassword: (email: string) => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
 }
@@ -103,6 +105,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   phone: '',
                   role: 'customer',
                   createdAt: new Date().toISOString(),
+                  photoURL: fbUser.photoURL || undefined,
                 };
                 setUser(fallback);
                 localStorage.setItem('dhakacut_user', JSON.stringify(fallback));
@@ -117,6 +120,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 phone: '',
                 role: 'customer',
                 createdAt: new Date().toISOString(),
+                photoURL: fbUser.photoURL || undefined,
               };
               setUser(fallback);
               localStorage.setItem('dhakacut_user', JSON.stringify(fallback));
@@ -181,6 +185,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const googleSignIn = async (): Promise<User> => {
+    setError(null);
+    try {
+      const googleUser = await authGoogleSignIn();
+      justAuthenticatedRef.current = true;
+      setUser(googleUser);
+      localStorage.setItem('dhakacut_user', JSON.stringify(googleUser));
+      return googleUser;
+    } catch (err: any) {
+      setError(err.message || 'Failed to sign in with Google');
+      throw err;
+    }
+  };
+
   const resetPassword = async (email: string): Promise<void> => {
     setError(null);
     try {
@@ -214,6 +232,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login: logIn, 
         signup: signUp, 
         logout: logOut, 
+        googleSignIn,
         resetPassword, 
         updateUser 
       }}

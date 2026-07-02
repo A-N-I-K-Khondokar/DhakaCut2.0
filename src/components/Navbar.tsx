@@ -81,7 +81,17 @@ export const Navbar: React.FC = () => {
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-2 focus:outline-none py-2 px-3 hover:bg-gray-50 rounded transition-colors border border-gray-100"
                 >
-                  <UserIcon className="h-4 w-4 text-gray-500 bg-gray-100 rounded-full p-0.5" />
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || 'User'}
+                      className="h-7 w-7 rounded-full object-cover ring-2 ring-primary/20"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <UserIcon className="h-4 w-4 text-gray-500 bg-gray-100 rounded-full p-0.5" />
+                  )}
                   <span className="text-sm font-medium text-gray-700 max-w-[120px] truncate">
                     {user.displayName || 'Client'}
                   </span>
@@ -169,7 +179,17 @@ export const Navbar: React.FC = () => {
           {user ? (
             <div className="border-t border-gray-100 pt-4 mt-4 px-3">
               <div className="flex items-center gap-3 mb-3">
-                <UserIcon className="h-8 w-8 text-gray-500 bg-gray-100 rounded-full p-1.5" />
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || 'User'}
+                    className="h-10 w-10 rounded-full object-cover ring-2 ring-primary/20"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  <UserIcon className="h-8 w-8 text-gray-500 bg-gray-100 rounded-full p-1.5" />
+                )}
                 <div>
                   <div className="text-base font-medium text-gray-800">{user.displayName}</div>
                   <div className="text-sm font-medium text-gray-500">{user.email}</div>

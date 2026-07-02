@@ -19,13 +19,13 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'inline-flex items-center justify-center font-medium rounded transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variants = {
-    primary: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
-    secondary: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    primary: 'bg-blue-700 text-white border border-blue-700 hover:bg-blue-800 focus:ring-blue-700 transition-colors duration-200',
+    secondary: 'bg-gray-100 text-gray-800 border border-gray-200 hover:bg-gray-200 focus:ring-gray-400 transition-colors duration-200',
     outline: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
-    'outline-white': 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
-    'outline-theme': 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
-    white: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
-    danger: 'bg-white text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    'outline-white': 'bg-transparent text-white border border-white hover:bg-white hover:text-blue-700 focus:ring-white transition-colors duration-200',
+    'outline-theme': 'bg-transparent text-blue-700 border border-blue-700 hover:bg-blue-700 hover:text-white focus:ring-blue-700 transition-colors duration-200',
+    white: 'bg-white text-blue-700 border border-white hover:bg-blue-50 focus:ring-blue-200 transition-colors duration-200',
+    danger: 'bg-red-600 text-white border border-red-600 hover:bg-red-700 focus:ring-red-500 transition-colors duration-200',
   };
 
   const sizes = {

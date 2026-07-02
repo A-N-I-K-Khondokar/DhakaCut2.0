@@ -71,8 +71,8 @@ export const Modal: React.FC<ModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        {/* Modal Body — flex column, children control their own scroll */}
+        <div className="flex-1 flex flex-col overflow-hidden p-6">
           {children}
         </div>
       </div>

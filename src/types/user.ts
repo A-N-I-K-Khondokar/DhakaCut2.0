@@ -5,4 +5,5 @@ export interface User {
   phone: string;
   role: 'admin' | 'customer';
   createdAt: string;
+  photoURL?: string;
 }

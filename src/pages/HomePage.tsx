@@ -13,10 +13,23 @@ export const HomePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const FEATURED_ORDER = [
+      'DhakaCut Prime',
+      'DhakaCut Studio',
+      'DhakaCut Express',
+      'DhakaCut Classic',
+      'DhakaCut Downtown',
+      'DhakaCut Elite',
+    ];
+
     const fetchSalons = async () => {
       try {
         const data = await getAllSalons();
-        setSalons(data.slice(0, 3)); // Display first 3 salons
+        // Sort by the desired display order, only include the featured 6
+        const ordered = FEATURED_ORDER
+          .map(name => data.find(s => s.name === name))
+          .filter((s): s is Salon => s !== undefined);
+        setSalons(ordered);
       } catch (err) {
         console.error('Failed to load salons for home page', err);
       } finally {
@@ -120,7 +133,7 @@ export const HomePage: React.FC = () => {
             <div>
               <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">Our Premium Locations</h2>
               <p className="text-gray-500 mt-1 text-sm sm:text-base">
-                Discover the closest DhakaCut branches and book instantly.
+                Discover our 6 featured DhakaCut branches and book instantly.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate('/salons')} className="flex items-center gap-1.5">
@@ -131,7 +144,7 @@ export const HomePage: React.FC = () => {
 
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[1, 2, 3].map((i) => (
+              {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="h-96 w-full bg-gray-50 animate-pulse rounded border border-gray-200" />
               ))}
             </div>

@@ -18,25 +18,26 @@ export const SalonCard: React.FC<SalonCardProps> = ({
   disabledBook = false,
 }) => {
   const { id, name, area, address, image, rating, description } = salon;
+  const [imgError, setImgError] = React.useState(false);
 
   return (
     <Card className="flex flex-col h-full hover:-translate-y-1 transition-transform duration-350">
       {/* Salon Image */}
       <div className="relative h-48 overflow-hidden rounded-t bg-gray-100">
-        <img
-          src={image}
-          alt={name}
-          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-          loading="lazy"
-          onError={(e) => {
-            const target = e.currentTarget;
-            target.style.display = 'none';
-            const parent = target.parentElement;
-            if (parent) {
-              parent.style.background = 'linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%)';
-            }
-          }}
-        />
+        {!imgError && image ? (
+          <img
+            src={image}
+            alt={name}
+            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%)' }}>
+            <span className="text-white text-base font-bold text-center px-4 drop-shadow">{name}</span>
+          </div>
+        )}
         <div className="absolute top-2 right-2 bg-white/95 backdrop-blur-sm px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
           <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
           <span className="text-xs font-bold text-gray-800">{rating.toFixed(1)}</span>
@@ -45,6 +46,7 @@ export const SalonCard: React.FC<SalonCardProps> = ({
           {area}
         </div>
       </div>
+
 
       {/* Salon Details */}
       <CardBody className="flex-1 flex flex-col justify-between">

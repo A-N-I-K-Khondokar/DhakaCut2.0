@@ -164,8 +164,8 @@ export const BookingModal: React.FC = () => {
         </div>
       </div>
 
-      {/* Steps Content */}
-      <div className="min-h-[280px]">
+      {/* Steps Content — scrollable */}
+      <div className="overflow-y-auto flex-1 -mx-6 px-6 pb-2">
         {/* STEP 1: SELECT STAFF */}
         {step === 1 && (
           <div>
@@ -344,8 +344,8 @@ export const BookingModal: React.FC = () => {
         )}
       </div>
 
-      {/* Modal Actions */}
-      <div className="mt-6 flex justify-between border-t border-gray-150 pt-4">
+      {/* Modal Actions — sticky footer, always visible */}
+      <div className="mt-4 flex justify-between border-t border-gray-150 pt-4 shrink-0">
         {step > 1 ? (
           <Button variant="outline" size="sm" onClick={handleBack} className="flex items-center gap-1.5">
             <ArrowLeft className="h-4 w-4" />
@@ -371,7 +371,7 @@ export const BookingModal: React.FC = () => {
             onClick={handleConfirm}
             isLoading={bookingLoading}
             disabled={(!user || user.role === 'admin') && step === 5}
-            className="bg-success hover:bg-success-hover text-white flex items-center gap-1.5"
+            className="bg-success hover:bg-success-hover text-white border-success flex items-center gap-1.5"
           >
             Confirm Booking
           </Button>
