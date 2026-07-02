@@ -57,7 +57,7 @@ export const App: React.FC = () => {
             {/* Global UI Components */}
             <ToastContainer />
             <BookingModal />
-            <DebugPanel />
+            {import.meta.env.DEV && <DebugPanel />}
 
             <Routes>
               {/* Customer Facing Pages */}
