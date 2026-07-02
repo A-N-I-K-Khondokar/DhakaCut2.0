@@ -207,7 +207,7 @@ export const HomePage: React.FC = () => {
           <Button
             size="lg"
             variant="white"
-            className="text-base font-semibold transition-all hover:scale-[1.02] shadow-md"
+            className="text-base font-semibold transition-all hover:scale-[1.02] hover:bg-blue-50 shadow-md"
             onClick={() => navigate('/salons')}
           >
             Find a Salon & Book Now
